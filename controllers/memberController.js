@@ -1,9 +1,109 @@
-const mongoose = require("mongoose");
+// const mongoose = require("mongoose");
 
-// const { response } = require("../app");
+// Import required modules
+const jwt = require("jsonwebtoken"); // For decoding and verifying JWT tokens
+const bcrypt = require("bcrypt");
 const Member = require("../models/Member"); // Import the Member model
 const Dependent = require("../models/Dependent");
 
+// Environment variable for JWT secret
+const JWT_SECRET = process.env.JWT_SECRET;
+
+// Function to get profile information for a member
+exports.getProfileInfo = async (req, res) => {
+  // console.log("edit profile");
+  try {
+    // Step 1: Extract the token from the request headers
+    const token = req.headers.authorization?.split(" ")[1]; // Extract "Bearer <token>"
+    if (!token) {
+      return res.status(401).json({ error: "Authorization token is missing" });
+    }
+
+    // Step 2: Verify and decode the token
+    let decoded;
+
+    try {
+      decoded = jwt.verify(token, JWT_SECRET); // Decode the token using the secret
+      // console.log('decoded.member_id: ', decoded.member_id)
+    } catch (error) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    // Step 3: Use the decoded token to fetch the member's data
+    const member = await Member.findOne(
+      { member_id: decoded.member_id }, // Match the member ID from the token
+      "mobile whatsApp email address" // Specify only the fields to be retrieved
+    );
+    // console.log("member:", member);
+    // Step 4: Check if the member exists
+    if (!member) {
+      return res.status(404).json({ error: "Member not found" });
+    }
+
+    // Step 5: Respond with the member's profile information
+    return res.status(200).json({
+      mobile: member.mobile,
+      whatsApp: member.whatsApp,
+      email: member.email,
+      address: member.address,
+    });
+  } catch (error) {
+    // Step 6: Handle server errors
+    console.error("Error fetching member profile:", error);
+    return res.status(500).json({
+      error: "An error occurred while fetching the profile information",
+    });
+  }
+};
+
+// Update member profile
+exports.updateProfileInfo = async (req, res) => {
+  try {
+    const { password, confirmPassword, email, mobile, whatsapp, address } = req.body;
+
+    // Retrieve member ID from the decoded JWT token (set in the authMiddleware)
+    const memberId = req.member.member_id;  // Access member ID from req.member
+
+    if (!memberId) {
+      return res.status(400).json({ message: "Member ID not found in token" });
+    }
+
+    // Prepare the updated data
+    const updateData = {};
+
+    // If password is provided, hash it before updating
+    if (password) {
+      const salt = await bcrypt.genSalt(10); // Create a salt
+      updateData.password = await bcrypt.hash(password, salt); // Hash the password
+    }
+    if (email) updateData.email = email;
+    if (mobile) updateData.mobile = mobile;
+    if (whatsapp) updateData.whatsApp = whatsapp;
+    if (address) updateData.address = address;
+
+    // Find and update the member in one operation
+    const updatedMember = await Member.findOneAndUpdate(
+      { member_id: memberId }, // Query condition
+      { $set: updateData }, // Data to update
+      { new: true } // Return the updated document
+    );
+
+    if (!updatedMember) {
+      return res.status(404).json({ message: "Member not found" });
+    }
+
+    // Respond with success
+    res.status(200).json({ message: "Profile updated successfully!" });
+  } catch (error) {
+    console.error("Error updating profile:", error);
+    res.status(500).json({ message: "Failed to update profile. Please try again later." });
+  }
+};
+
+
+
+
+// ---------------------------------------------------------------
 // Get next member ID
 exports.getNextId = async (req, res) => {
   try {
@@ -158,7 +258,7 @@ exports.getAllActiveMembers = async (req, res) => {
       $or: [
         { deactivated_at: { $exists: false } }, // No deactivatedDate field
         { deactivated_at: null }, // deactivatedDate is explicitly null
-      ]
+      ],
     })
       .select("-password")
       .sort("member_id"); // Excludes the password field
@@ -265,7 +365,7 @@ exports.getMembershipDeathById = async (req, res) => {
 //Get member full details by memberId
 exports.getAllDataById = async (req, res) => {
   const { member_id } = req.query;
-  console.log(member_id)
+  console.log(member_id);
   try {
     // console.log('Get Dependents')
 
@@ -474,7 +574,7 @@ exports.updateDiedStatus = async (req, res) => {
 exports.updatePreviousDue = async (req, res) => {
   const { member_id, previousDue } = req.body;
   // console.log(req.body)
- 
+
   try {
     // Use Mongoose's `findOneAndUpdate` to update the died status
     const updatedMember = await Member.findOneAndUpdate(

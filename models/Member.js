@@ -24,11 +24,15 @@ const MemberSchema = new Schema(
       type: String,
       trim: true,
     },
-    res_tel: {
+    phone: {
       type: String,
       // match: /^[0-9]{10}$/, // Ensure valid 10-digit phone numbers
     },
-    mob_tel: {
+    mobile: {
+      type: String,
+      // match: /^[0-9]{10}$/, // Ensure valid 10-digit mobile numbers
+    },
+    whatsApp: {
       type: String,
       // match: /^[0-9]{10}$/, // Ensure valid 10-digit mobile numbers
     },
