@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 
 const authMiddleware = (requiredRoles = []) => {
+  // console.log('Auth middleware')
   return (req, res, next) => {
     const token = req.header("Authorization")?.split(" ")[1];
     // console.log("Token:", token);  // Debugging the token

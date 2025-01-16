@@ -1,6 +1,6 @@
 const express = require("express");
 // const memberController=require('../controllers/memberController')
-const {getAllDataById, getProfileInfo, updateProfileInfo } = require("../controllers/memberController");
+const {getAllDataById, getProfileInfo, updateProfileInfo, getMember, get_id } = require("../controllers/memberController");
 const authMiddleware = require("../middleware/authMiddleware"); 
 
 const router = express.Router();
@@ -10,6 +10,10 @@ const router = express.Router();
 router.get("/profile", authMiddleware(), getProfileInfo);
 // Route to update member profile information (requires authentication)
 router.put("/profile", authMiddleware(), updateProfileInfo);
+// Route to update member profile information (requires authentication)
+router.get("/info", authMiddleware(), getMember);
+// Route to update member profile information (requires authentication)
+router.get("/_id/:memberId", authMiddleware(), get_id);
 
 //getting admins for work assignments
 // router.get("/getAdminsForFuneral", adminController.getAdminsForFuneral);

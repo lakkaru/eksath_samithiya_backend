@@ -26,7 +26,8 @@ exports.login = async (req, res) => {
       throw new Error("JWT_SECRET is undefined");
     }
     const payload = {
-        member_id: member.member_id, // Member ID
+        member_id: member.member_id,
+        name:member.name, // Member ID
         roles: member.roles, // Roles for the member
     };
 

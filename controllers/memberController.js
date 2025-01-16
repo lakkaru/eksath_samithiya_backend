@@ -9,7 +9,7 @@ const Dependent = require("../models/Dependent");
 // Environment variable for JWT secret
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// Function to get profile information for a member
+// Get profile information for a member
 exports.getProfileInfo = async (req, res) => {
   // console.log("edit profile");
   try {
@@ -59,10 +59,11 @@ exports.getProfileInfo = async (req, res) => {
 // Update member profile
 exports.updateProfileInfo = async (req, res) => {
   try {
-    const { password, confirmPassword, email, mobile, whatsapp, address } = req.body;
+    const { password, confirmPassword, email, mobile, whatsapp, address } =
+      req.body;
 
     // Retrieve member ID from the decoded JWT token (set in the authMiddleware)
-    const memberId = req.member.member_id;  // Access member ID from req.member
+    const memberId = req.member.member_id; // Access member ID from req.member
 
     if (!memberId) {
       return res.status(400).json({ message: "Member ID not found in token" });
@@ -96,10 +97,85 @@ exports.updateProfileInfo = async (req, res) => {
     res.status(200).json({ message: "Profile updated successfully!" });
   } catch (error) {
     console.error("Error updating profile:", error);
-    res.status(500).json({ message: "Failed to update profile. Please try again later." });
+    res
+      .status(500)
+      .json({ message: "Failed to update profile. Please try again later." });
   }
 };
 
+// Get data for member home page
+exports.getMember = async (req, res) => {
+  // console.log('test:', req.member)
+  try {
+    // Extract member_id from headers
+    const memberId = req.member.member_id;
+    // console.log("memberId: ", memberId);
+    if (!memberId) {
+      return res
+        .status(400)
+        .json({ error: "Member ID is required in headers." });
+    }
+
+    // Find member by ID
+    const member = await Member.findOne({ member_id: memberId }).populate("dependents", "name");
+
+    if (!member) {
+      return res.status(404).json({ error: "Member not found." });
+    }
+
+    // Calculate fineTotal by summing up amounts in the fines array
+    const fineTotal =
+      member.fines?.reduce((total, fine) => total + fine.amount, 0) || 0;
+// console.log(member.dependents)
+    // Respond with member details
+    res.status(200).json({
+      area: member.area,
+      address: member.address,
+      mobile: member.mobile,
+      whatsApp: member.whatsApp,
+      email: member.email,
+      previousDue: member.previousDue,
+      fineTotal, // Use the calculated fineTotal
+      membershipDue: member.membershipDue,
+      meetingAbsents: member.meetingAbsents,
+      dependents: member.dependents.map(dependent => dependent.name)
+    });
+  } catch (error) {
+    console.error("Error fetching member data:", error);
+    res.status(500).json({ error: "Internal server error." });
+  }
+};
+
+//get object id of the member for loans
+exports.get_id=async (req, res) => {
+  const {memberId}=req.params
+  // console.log(memberId)
+ try {
+  // Extract member_id from headers
+  // const memberId = req.member.member_id;
+  // console.log("memberId: ", memberId);
+  if (!memberId) {
+    return res
+      .status(400)
+      .json({ error: "Member ID is required in headers." });
+  }
+
+  // Find member by ID
+  const member = await Member.findOne({ member_id: memberId }).select('_id name mobile whatsApp area member_id');
+
+  if (!member) {
+    return res.status(404).json({ error: "Member not found." });
+  }
+
+  // Respond with member details
+  res.status(200).json({
+    member
+  });
+} catch (error) {
+  console.error("Error fetching member data:", error);
+  res.status(500).json({ error: "Internal server error." });
+}
+}
 
 
 
