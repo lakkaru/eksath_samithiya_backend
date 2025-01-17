@@ -1,6 +1,6 @@
 const express = require("express");
 // const memberController=require('../controllers/memberController')
-const {getAllDataById, getProfileInfo, updateProfileInfo, getMember, get_id } = require("../controllers/memberController");
+const {getMemberById, getProfileInfo, updateProfileInfo, getMember } = require("../controllers/memberController");
 const authMiddleware = require("../middleware/authMiddleware"); 
 
 const router = express.Router();
@@ -10,14 +10,16 @@ const router = express.Router();
 router.get("/profile", authMiddleware(), getProfileInfo);
 // Route to update member profile information (requires authentication)
 router.put("/profile", authMiddleware(), updateProfileInfo);
-// Route to update member profile information (requires authentication)
+// Route to get  member info (requires authentication)
 router.get("/info", authMiddleware(), getMember);
-// Route to update member profile information (requires authentication)
-router.get("/_id/:memberId", authMiddleware(), get_id);
+// Route to get member id object by member_id (requires authentication)
+// router.get("/_id/:memberId", authMiddleware(), get_id);
+// Route to get member  basic info by member_id(requires authentication)
+router.get("/getMemberById/:memberId", authMiddleware(), getMemberById);
 
 //getting admins for work assignments
 // router.get("/getAdminsForFuneral", adminController.getAdminsForFuneral);
-router.get("/get-all-data-by-id",authMiddleware(["vice-secretory"]) , getAllDataById);
+// router.get("/get-all-data-by-id",authMiddleware(["vice-secretory"]) , getAllDataById);
 // get-admin-for-
 
 //create member

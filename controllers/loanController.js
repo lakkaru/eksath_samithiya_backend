@@ -1,13 +1,31 @@
+const Member = require("../models/Member");
 const Loan = require("../models/Loan"); // Adjust the path to the Loan model if necessary
 const LoanPrinciplePayment = require("../models/LoanPayment"); // Adjust the path to the Loan model if necessary
 const LoanInterestPayment = require("../models/LoanInterestPayment"); // Adjust the path to the Loan model if necessary
 const PenaltyIntPayment = require("../models/LoanPenaltyIntPayment"); // Adjust the path to the Loan model if necessary
 
-/**
- * Get all active loans
- * @param {object} req - The request object
- * @param {object} res - The response object
- */
+
+//create a loan
+exports.createLoan=async (req, res) => {
+  const loanData=req.body
+  try {
+    // console.log('loanData: ', loanData)
+    // Ensure the loan number is unique
+    const existingLoan = await Loan.findOne({loanNumber:loanData.loanNumber });
+    if (existingLoan) {
+      return res.status(400).json({ message: "Loan number already exists" });
+    }
+    const newLoan= new Loan({...loanData})
+    const savedLoan = await newLoan.save();
+    res.status(201).json(savedLoan);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error creating loan", error: error.message });
+  }
+}
+
+/*** Get all active loans */
 exports.getActiveLoans = async (req, res) => {
   try {
     // Find loans where loanRemainingAmount > 0
@@ -27,6 +45,48 @@ exports.getActiveLoans = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error fetching active loans",
+      error: error.message,
+    });
+  }
+};
+
+//getting all loan info of a member
+exports.getMemberLoanInfo = async (req, res) => {
+  const { member_id } = req.params;
+  // console.log('member_id :', member_id)
+  let member, loan
+  try {
+     member = await Member.findOne({ member_id }).select(
+      "_id name area mobile"
+    );
+    // console.log('member: ', member)
+    if (member) {
+      try {
+        loan = await Loan.findOne({ memberId : member._id}).select(
+          "_id loanRemainingAmount loanNumber"
+        );
+        // console.log('loan :', loan)
+      } catch (error) {
+        console.error("Error fetching loan:", error);
+        res.status(500).json({
+          success: false,
+          message: "Error fetching loan",
+          error: error.message,
+        });
+      }
+    }
+    // Send the active loans as the response
+    res.status(200).json({
+      success: true,
+      member,
+      loan
+    });
+
+  } catch (error) {
+    console.error("Error fetching member:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching member",
       error: error.message,
     });
   }
@@ -167,18 +227,15 @@ exports.createLoanPayments = async (req, res) => {
       { $inc: { loanRemainingAmount: -amounts.principle } }, // Reduce the remaining amount atomically
       { new: true, runValidators: true } // Return the updated document and apply validation
     );
-    
 
-    res
-      .status(201)
-      .json({
-        message: "Payment recorded successfully.",
-        data: {
-          savedPrinciplePayment,
-          savedInterestPayment,
-          savedPenaltyIntPayment,
-        },
-      });
+    res.status(201).json({
+      message: "Payment recorded successfully.",
+      data: {
+        savedPrinciplePayment,
+        savedInterestPayment,
+        savedPenaltyIntPayment,
+      },
+    });
   } catch (error) {
     res.status(500).json({ message: "Error updating loan payments", error });
   }
