@@ -25,23 +25,54 @@ exports.createLoan=async (req, res) => {
   }
 }
 
-/*** Get all active loans */
+/*** Get all active loans and unpaid months*/
 exports.getActiveLoans = async (req, res) => {
   try {
-    // Find loans where loanRemainingAmount > 0
     const activeLoans = await Loan.find({
       loanRemainingAmount: { $gt: 0 },
-    }).populate("memberId", "name member_id"); // Populate memberId with the name field (adjust as per your Member model)
-    //   .populate("guarantor1Id", "name") // Populate guarantor1Id with the name field
-    //   .populate("guarantor2Id", "name"); // Populate guarantor2Id with the name field
+    }).populate("memberId", "name member_id").sort({ loanNumber: 1 });
 
-    // Send the active loans as the response
+    const activeLoansWithInterest = await Promise.all(
+      activeLoans.map(async (loan) => {
+        const lastInterestPayment = await LoanInterestPayment.findOne({
+          loanId: loan._id,
+        })
+          .sort({ paymentDate: -1 })
+          .exec();
+
+        let unpaidDuration = null;
+
+        if (lastInterestPayment) {
+          const lastPaymentDate = new Date(lastInterestPayment.date);
+          const currentDate = new Date();
+          unpaidDuration = Math.ceil(
+            (currentDate.getFullYear() - lastPaymentDate.getFullYear()) * 12 +
+              currentDate.getMonth() -
+              lastPaymentDate.getMonth()
+          );
+        } else {
+          const loanStartDate = new Date(loan.loanDate);
+          const currentDate = new Date();
+          unpaidDuration = Math.ceil(
+            (currentDate.getFullYear() - loanStartDate.getFullYear()) * 12 +
+              currentDate.getMonth() -
+              loanStartDate.getMonth()
+          );
+        }
+
+        return {
+          ...loan.toObject(),
+          unpaidDuration,
+        };
+      })
+    );
+
     res.status(200).json({
       success: true,
-      activeLoans: activeLoans,
+      activeLoans: activeLoansWithInterest,
     });
   } catch (error) {
-    console.error("Error fetching active loans:", error);
+    // console.error("Error fetching active loans:", error);
     res.status(500).json({
       success: false,
       message: "Error fetching active loans",
@@ -49,6 +80,8 @@ exports.getActiveLoans = async (req, res) => {
     });
   }
 };
+
+
 
 //getting all loan info of a member
 exports.getMemberLoanInfo = async (req, res) => {
@@ -116,16 +149,16 @@ exports.getLoanOfMember = async (req, res) => {
     let lastIntPaymentDate = "";
     if (loans) {
       principlePayments = await LoanPrinciplePayment.find({
-        loanId: loans[0]._id,
+        loanId: loans[0]?._id,
       }).select("date amount");
       interestPayments = await LoanInterestPayment.find({
-        loanId: loans[0]._id,
+        loanId: loans[0]?._id,
       }).select("date amount");
       penaltyIntPayments = await PenaltyIntPayment.find({
-        loanId: loans[0]._id,
+        loanId: loans[0]?._id,
       }).select("date amount");
       lastIntPaymentDate = await LoanInterestPayment.findOne({
-        loanId: loans[0]._id,
+        loanId: loans[0]?._id,
       })
         .sort({ date: -1 })
         .select("date");

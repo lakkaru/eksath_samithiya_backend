@@ -14,6 +14,7 @@ const app = express();
 // Connect to MongoDB
 connectDB();
 app.use(cors());
+// app.use(cors({ origin: 'https://wil.lakkaru.com' }));
 app.use(express.json());
 
 //routes

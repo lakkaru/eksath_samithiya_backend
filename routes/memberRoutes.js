@@ -1,6 +1,6 @@
 const express = require("express");
 // const memberController=require('../controllers/memberController')
-const {getMemberById, getProfileInfo, updateProfileInfo, getMember } = require("../controllers/memberController");
+const {getMemberById, getProfileInfo, updateProfileInfo, getMember, getPayments } = require("../controllers/memberController");
 const authMiddleware = require("../middleware/authMiddleware"); 
 
 const router = express.Router();
@@ -12,6 +12,7 @@ router.get("/profile", authMiddleware(), getProfileInfo);
 router.put("/profile", authMiddleware(), updateProfileInfo);
 // Route to get  member info (requires authentication)
 router.get("/info", authMiddleware(), getMember);
+router.get("/payments", authMiddleware(), getPayments);
 // Route to get member id object by member_id (requires authentication)
 // router.get("/_id/:memberId", authMiddleware(), get_id);
 // Route to get member  basic info by member_id(requires authentication)

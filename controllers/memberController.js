@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken"); // For decoding and verifying JWT tokens
 const bcrypt = require("bcrypt");
 const Member = require("../models/Member"); // Import the Member model
 const Dependent = require("../models/Dependent");
+const MembershipPayment = require("../models/MembershipPayment");
 
 // Environment variable for JWT secret
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -28,7 +29,7 @@ exports.getProfileInfo = async (req, res) => {
     } catch (error) {
       return res.status(401).json({ error: "Invalid or expired token" });
     }
-
+    // console.log("decoded.member_id: ", decoded.member_id);
     // Step 3: Use the decoded token to fetch the member's data
     const member = await Member.findOne(
       { member_id: decoded.member_id }, // Match the member ID from the token
@@ -59,8 +60,7 @@ exports.getProfileInfo = async (req, res) => {
 // Update member profile
 exports.updateProfileInfo = async (req, res) => {
   try {
-    const { password, confirmPassword, email, mobile, whatsapp, address } =
-      req.body;
+    const { password, email, mobile, whatsApp, address } = req.body;
 
     // Retrieve member ID from the decoded JWT token (set in the authMiddleware)
     const memberId = req.member.member_id; // Access member ID from req.member
@@ -79,7 +79,7 @@ exports.updateProfileInfo = async (req, res) => {
     }
     if (email) updateData.email = email;
     if (mobile) updateData.mobile = mobile;
-    if (whatsapp) updateData.whatsApp = whatsapp;
+    if (whatsApp) updateData.whatsApp = whatsApp;
     if (address) updateData.address = address;
 
     // Find and update the member in one operation
@@ -107,8 +107,15 @@ exports.updateProfileInfo = async (req, res) => {
 exports.getMember = async (req, res) => {
   // console.log('test:', req.member)
   try {
-    // Extract member_id from headers
-    const memberId = req.member.member_id;
+    const token = req.headers.authorization?.split(" ")[1]; // Extract "Bearer <token>"
+    if (!token) {
+      return res.status(401).json({ error: "Authorization token is missing" });
+    }
+
+    // Step 2: Verify and decode the token
+    let decoded;
+    decoded = jwt.verify(token, JWT_SECRET);
+    const memberId = decoded.member_id;
     // console.log("memberId: ", memberId);
     if (!memberId) {
       return res
@@ -117,7 +124,10 @@ exports.getMember = async (req, res) => {
     }
 
     // Find member by ID
-    const member = await Member.findOne({ member_id: memberId }).populate("dependents", "name");
+    const member = await Member.findOne({ member_id: memberId }).populate(
+      "dependents",
+      "name"
+    );
 
     if (!member) {
       return res.status(404).json({ error: "Member not found." });
@@ -126,8 +136,39 @@ exports.getMember = async (req, res) => {
     // Calculate fineTotal by summing up amounts in the fines array
     const fineTotal =
       member.fines?.reduce((total, fine) => total + fine.amount, 0) || 0;
-// console.log(member.dependents)
+    // console.log(member._id);
+//getting all membership payments done by member
+const allMembershipPayments = await MembershipPayment.find({
+  memberId: member._id})
+    //calculating membership payment due for this year
+    //getting membership payments for this year
+    const currentYear = new Date().getFullYear();
+    const startOfYear = new Date(currentYear, 0, 1);
+    const endOfYear = new Date(currentYear + 1, 0, 1);
+
+    const membershipPayments = await MembershipPayment.find({
+      memberId: member._id,
+      date: {
+        $gte: startOfYear,
+        $lt: endOfYear,
+      },
+    }).select("date amount");
+    //getting total membership payments for this year
+    const totalMembershipPayments = membershipPayments.reduce(
+      (total, payment) => total + payment.amount,
+      0 // Initial value for the total
+    );
+    //calculating membership due for this year
+    const currentMonth = new Date().getMonth() + 1;
+    if (member.siblingsCount>0) {
+      membershipCharge=((300 *member.siblingsCount*0.3)+300)*currentMonth
+    } else {
+      membershipCharge=300*currentMonth
+    }
+    const membershipDue = membershipCharge - totalMembershipPayments;
+    // console.log("membershipPayments:", membershipPayments);
     // Respond with member details
+    // console.log('member:', member)
     res.status(200).json({
       area: member.area,
       address: member.address,
@@ -135,10 +176,10 @@ exports.getMember = async (req, res) => {
       whatsApp: member.whatsApp,
       email: member.email,
       previousDue: member.previousDue,
-      fineTotal, // Use the calculated fineTotal
-      membershipDue: member.membershipDue,
       meetingAbsents: member.meetingAbsents,
-      dependents: member.dependents.map(dependent => dependent.name)
+      dependents: member.dependents.map((dependent) => dependent.name),
+      fineTotal, // Use the calculated fineTotal
+      membershipDue: membershipDue,
     });
   } catch (error) {
     console.error("Error fetching member data:", error);
@@ -147,36 +188,74 @@ exports.getMember = async (req, res) => {
 };
 
 //get basic data of the member
-exports.getMemberById=async (req, res) => {
-  const {memberId}=req.params
+exports.getMemberById = async (req, res) => {
+  const { memberId } = req.params;
   // console.log(memberId)
- try {
-  // Extract member_id from headers
-  // const memberId = req.member.member_id;
-  // console.log("memberId: ", memberId);
-  if (!memberId) {
-    return res
-      .status(400)
-      .json({ error: "Member ID is required in headers." });
+  try {
+    // Extract member_id from headers
+    // const memberId = req.member.member_id;
+    // console.log("memberId: ", memberId);
+    if (!memberId) {
+      return res
+        .status(400)
+        .json({ error: "Member ID is required in headers." });
+    }
+
+    // Find member by ID
+    const member = await Member.findOne({ member_id: memberId }).select(
+      "_id name mobile whatsApp area member_id"
+    );
+
+    if (!member) {
+      return res.status(404).json({ error: "Member not found." });
+    }
+
+    // Respond with member details
+    res.status(200).json({
+      member,
+    });
+  } catch (error) {
+    console.error("Error fetching member data:", error);
+    res.status(500).json({ error: "Internal server error." });
   }
+};
 
-  // Find member by ID
-  const member = await Member.findOne({ member_id: memberId }).select('_id name mobile whatsApp area member_id');
+//get payments data for member payments page
+exports.getPayments = async (req, res) => {
+  console.log("getPayments");
+  try {
+    // Getting the authorization token
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ error: "Authorization token is missing" });
+    }
 
-  if (!member) {
-    return res.status(404).json({ error: "Member not found." });
+    // Decode the token to extract member information
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const memberId = decoded.member_id;
+    // console.log("Decoded Member ID:", memberId);
+
+    // Fetch the member's previous due data
+    const member = await Member.findOne({ member_id: memberId }).select(
+      "previousDue"
+    );
+
+    // Check if the member exists
+    if (!member) {
+      return res.status(404).json({ error: "Member not found" });
+    }
+
+    // console.log("Previous Due:", member.previousDue.totalDue);
+
+    // Send the response with the previous due
+    res.status(200).json({
+      previousDue: member.previousDue.totalDue,
+    });
+  } catch (error) {
+    console.error("Error in getPayments:", error.message);
+    res.status(500).json({
+      error: "An error occurred while fetching payment data",
+      message: error.message,
+    });
   }
-
-  // Respond with member details
-  res.status(200).json({
-    member
-  });
-} catch (error) {
-  console.error("Error fetching member data:", error);
-  res.status(500).json({ error: "Internal server error." });
 }
-}
-
-
-
-

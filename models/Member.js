@@ -73,8 +73,8 @@ const MemberSchema = new Schema(
       default: "regular", // regular or other statuses like 'inactive', etc.
     },
     previousDue: {
-      type: Number,
-      default: 0,
+      totalDue:{type:Number,default:0}, 
+      dueYear: { type: Date },
     },
     meetingAbsents: {
       type: Number,
