@@ -135,12 +135,15 @@ exports.getMember = async (req, res) => {
     }
 
     // Calculate fineTotal by summing up amounts in the fines array
-    const fineTotal =
-      member.fines?.reduce((total, fine) => total + fine.amount, 0) ;
+    const fineTotal = member.fines?.reduce(
+      (total, fine) => total + fine.amount,
+      0
+    );
     // console.log(member._id);
-//getting all membership payments done by member
-const allMembershipPayments = await MembershipPayment.find({
-  memberId: member._id})
+    //getting all membership payments done by member
+    const allMembershipPayments = await MembershipPayment.find({
+      memberId: member._id,
+    });
     //calculating membership payment due for this year
     //getting membership payments for this year
     const currentYear = new Date().getFullYear();
@@ -161,10 +164,11 @@ const allMembershipPayments = await MembershipPayment.find({
     );
     //calculating membership due for this year
     const currentMonth = new Date().getMonth() + 1;
-    if (member.siblingsCount>0) {
-      membershipCharge=((300 *member.siblingsCount*0.3)+300)*currentMonth
+    if (member.siblingsCount > 0) {
+      membershipCharge =
+        (300 * member.siblingsCount * 0.3 + 300) * currentMonth;
     } else {
-      membershipCharge=300*currentMonth
+      membershipCharge = 300 * currentMonth;
     }
     const membershipDue = membershipCharge - totalMembershipPayments;
     // console.log("membershipPayments:", membershipPayments);
@@ -237,11 +241,13 @@ exports.getPayments = async (req, res) => {
     // console.log("Decoded Member ID:", memberId);
     //get member id object
 
-    const member_Id = await Member.findOne({ member_id: memberId }).select('_id')
-// console.log('member_Id:', member_Id)
-     // Fetch membership payments
-     const membershipPayments = await MembershipPayment.find({
-      memberId: member_Id,//id object
+    const member_Id = await Member.findOne({ member_id: memberId }).select(
+      "_id"
+    );
+    // console.log('member_Id:', member_Id)
+    // Fetch membership payments
+    const membershipPayments = await MembershipPayment.find({
+      memberId: member_Id, //id object
     }).select("date amount _id");
     // Combine and group payments by date
     const paymentMap = {};
@@ -261,10 +267,12 @@ exports.getPayments = async (req, res) => {
       paymentMap[date].memAmount += payment.amount || 0;
     });
 
-     // Fetch fine payments
-     const finePayments = await FinePayment.find({
-      memberId: member_Id,//id object
+    // Fetch fine payments
+    const finePayments = await FinePayment.find({
+      memberId: member_Id, //id object
     }).select("date amount _id");
+    // console.log('member_Id:', member_Id)
+    // console.log('finePayments:', finePayments)
     finePayments.forEach((payment) => {
       const date = new Date(payment.date).toISOString().split("T")[0]; // Normalize date
       if (!paymentMap[date]) {
@@ -280,13 +288,13 @@ exports.getPayments = async (req, res) => {
       paymentMap[date].fineAmount += payment.amount || 0;
     });
 
-     // Convert the map to an array and sort by date
-     const allPayments = Object.values(paymentMap).sort(
+    // Convert the map to an array and sort by date
+    const allPayments = Object.values(paymentMap).sort(
       (a, b) => new Date(b.date) - new Date(a.date)
     );
 
-     //Process and group payments
-     const formattedPayments = allPayments.map(payment => ({
+    //Process and group payments
+    const formattedPayments = allPayments.map((payment) => ({
       ...payment,
       date:
         payment.date !== "Total"
@@ -295,33 +303,33 @@ exports.getPayments = async (req, res) => {
               .split("T")[0]
               .replace(/-/g, "/")
           : "Total",
-    }))
+    }));
     const grouped = formattedPayments.reduce((acc, payment) => {
-      if (payment.date === "Total") return acc // Skip the global total row
-      const year = payment.date.split("/")[0] // Extract the year
+      if (payment.date === "Total") return acc; // Skip the global total row
+      const year = payment.date.split("/")[0]; // Extract the year
       if (!acc[year]) {
         acc[year] = {
           payments: [],
           totals: { memAmount: 0, fineAmount: 0 },
-        }
+        };
       }
 
-      acc[year].payments.push(payment)
+      acc[year].payments.push(payment);
 
-      acc[year].totals.memAmount += payment.memAmount || 0
-      acc[year].totals.fineAmount += payment.fineAmount || 0
+      acc[year].totals.memAmount += payment.memAmount || 0;
+      acc[year].totals.fineAmount += payment.fineAmount || 0;
 
-      return acc
-    }, {})
+      return acc;
+    }, {});
 
     // Add totals to each year's group
-    Object.keys(grouped).forEach(year => {
+    Object.keys(grouped).forEach((year) => {
       grouped[year].payments.push({
         date: "Total",
         memAmount: grouped[year].totals.memAmount,
         fineAmount: grouped[year].totals.fineAmount,
-      })
-    })
+      });
+    });
     // const fineTotalAmount = allPayments.reduce(
     //   (sum, payment) => sum + payment.fineAmount,
     //   0
@@ -331,9 +339,8 @@ exports.getPayments = async (req, res) => {
     // Send the response with the previous due
     res.status(200).json({
       message: "Payments fetched successfully",
-      
+
       payments: grouped,
-     
     });
   } catch (error) {
     console.error("Error in getPayments:", error.message);
@@ -342,4 +349,79 @@ exports.getPayments = async (req, res) => {
       message: error.message,
     });
   }
-}
+};
+
+//get data of the member for account receipt page
+exports.getMemberDueById = async (req, res) => {
+  const { member_id } = req.query;
+  // console.log(member_id)
+  try {
+    // Extract member_id from headers
+    // const memberId = req.member.member_id;
+    // console.log("memberId: ", memberId);
+    if (!member_id) {
+      return res
+        .status(400)
+        .json({ error: "Member ID is required in headers." });
+    }
+
+    // Find member by ID
+    const member = await Member.findOne({ member_id: member_id }).select(
+      "_id member_id name previousDue fines"
+    );
+    // console.log(member)
+    if (!member) {
+      return res.status(404).json({ error: "Member not found." });
+    }
+
+    // Calculate fineTotal by summing up amounts in the fines array
+    const fineTotal = member.fines?.reduce(
+      (total, fine) => total + fine.amount,
+      0
+    );
+    //getting total of fins and previous dues
+    const totalDue = fineTotal + member.previousDue.totalDue;
+    // //getting all membership payments done by member
+    // const allMembershipPayments = await MembershipPayment.find({
+    //   memberId: member._id,
+    // });
+    //calculating membership payment due for this year
+    //getting membership payments for this year
+    const currentYear = new Date().getFullYear();
+    const startOfYear = new Date(currentYear, 0, 1);
+    const endOfYear = new Date(currentYear + 1, 0, 1);
+
+    const membershipPayments = await MembershipPayment.find({
+      memberId: member._id,
+      date: {
+        $gte: startOfYear,
+        $lt: endOfYear,
+      },
+    }).select("date amount");
+    //getting total membership payments for this year
+    const totalMembershipPayments = membershipPayments.reduce(
+      (total, payment) => total + payment.amount,
+      0 // Initial value for the total
+    );
+    //calculating membership due for this year
+    const currentMonth = new Date().getMonth() + 1;
+    if (member.siblingsCount > 0) {
+      membershipCharge =
+        (300 * member.siblingsCount * 0.3 + 300) * currentMonth;
+    } else {
+      membershipCharge = 300 * currentMonth;
+    }
+    const membershipDue = membershipCharge - totalMembershipPayments;
+  
+
+    // Respond with member details
+    res.status(200).json({
+      member,
+      totalDue,
+      membershipDue
+    });
+  } catch (error) {
+    console.error("Error fetching member data:", error);
+    res.status(500).json({ error: "Internal server error." });
+  }
+};

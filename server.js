@@ -7,6 +7,7 @@ const connectDB = require("./config/DB");
 const authRoutes = require("./routes/authRoutes");
 const memberRoutes = require("./routes/memberRoutes");
 const loanRoutes = require("./routes/loanRoutes");
+const accountRoutes = require("./routes/accountRoutes");
 
 const PORT = process.env.PORT || 5000;
 
@@ -40,6 +41,7 @@ app.use(express.json());
 app.use("/auth", authRoutes);
 app.use("/member", memberRoutes);
 app.use("/loan", loanRoutes);
+app.use("/account", accountRoutes);
 
 //Start the server
 app.listen(PORT, () => {
