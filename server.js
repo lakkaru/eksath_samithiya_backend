@@ -14,7 +14,26 @@ const app = express();
 // Connect to MongoDB
 connectDB();
 app.use(cors());
-// app.use(cors({ origin: 'https://wil.lakkaru.com' }));
+// app.use(
+//   cors({
+//     origin: "http://localhost:8000", // Match your frontend origin
+//     methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+//     credentials: true, // If sending cookies or credentials
+//   })
+// );
+// app.use(
+//   cors({
+//     origin: "https://wil.lakkaru.com", // Replace with your frontend's origin
+//     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+//     allowedHeaders: ["Content-Type", "Authorization"],
+//     credentials: true,
+//   })
+// );
+
+// Explicitly handle OPTIONS requests
+// app.options("*", (req, res) => {
+//   res.sendStatus(204); // No Content
+// });
 app.use(express.json());
 
 //routes

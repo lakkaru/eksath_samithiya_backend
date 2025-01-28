@@ -6,6 +6,7 @@ const bcrypt = require("bcrypt");
 const Member = require("../models/Member"); // Import the Member model
 const Dependent = require("../models/Dependent");
 const MembershipPayment = require("../models/MembershipPayment");
+const FinePayment = require("../models/FinePayment");
 
 // Environment variable for JWT secret
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -135,7 +136,7 @@ exports.getMember = async (req, res) => {
 
     // Calculate fineTotal by summing up amounts in the fines array
     const fineTotal =
-      member.fines?.reduce((total, fine) => total + fine.amount, 0) || 0;
+      member.fines?.reduce((total, fine) => total + fine.amount, 0) ;
     // console.log(member._id);
 //getting all membership payments done by member
 const allMembershipPayments = await MembershipPayment.find({
@@ -222,7 +223,7 @@ exports.getMemberById = async (req, res) => {
 
 //get payments data for member payments page
 exports.getPayments = async (req, res) => {
-  console.log("getPayments");
+  // console.log("getPayments");
   try {
     // Getting the authorization token
     const token = req.headers.authorization?.split(" ")[1];
@@ -234,22 +235,105 @@ exports.getPayments = async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const memberId = decoded.member_id;
     // console.log("Decoded Member ID:", memberId);
+    //get member id object
 
-    // Fetch the member's previous due data
-    const member = await Member.findOne({ member_id: memberId }).select(
-      "previousDue"
+    const member_Id = await Member.findOne({ member_id: memberId }).select('_id')
+// console.log('member_Id:', member_Id)
+     // Fetch membership payments
+     const membershipPayments = await MembershipPayment.find({
+      memberId: member_Id,//id object
+    }).select("date amount _id");
+    // Combine and group payments by date
+    const paymentMap = {};
+
+    membershipPayments.forEach((payment) => {
+      const date = new Date(payment.date).toISOString().split("T")[0]; // Normalize date
+      if (!paymentMap[date]) {
+        paymentMap[date] = {
+          date,
+          mem_id: null,
+          memAmount: 0,
+          fine_id: null,
+          fineAmount: 0,
+        };
+      }
+      paymentMap[date].mem_id = payment._id;
+      paymentMap[date].memAmount += payment.amount || 0;
+    });
+
+     // Fetch fine payments
+     const finePayments = await FinePayment.find({
+      memberId: member_Id,//id object
+    }).select("date amount _id");
+    finePayments.forEach((payment) => {
+      const date = new Date(payment.date).toISOString().split("T")[0]; // Normalize date
+      if (!paymentMap[date]) {
+        paymentMap[date] = {
+          date,
+          mem_id: null,
+          memAmount: 0,
+          fine_id: null,
+          fineAmount: 0,
+        };
+      }
+      paymentMap[date].fine_id = payment._id;
+      paymentMap[date].fineAmount += payment.amount || 0;
+    });
+
+     // Convert the map to an array and sort by date
+     const allPayments = Object.values(paymentMap).sort(
+      (a, b) => new Date(b.date) - new Date(a.date)
     );
 
-    // Check if the member exists
-    if (!member) {
-      return res.status(404).json({ error: "Member not found" });
-    }
+     //Process and group payments
+     const formattedPayments = allPayments.map(payment => ({
+      ...payment,
+      date:
+        payment.date !== "Total"
+          ? new Date(payment.date)
+              .toISOString()
+              .split("T")[0]
+              .replace(/-/g, "/")
+          : "Total",
+    }))
+    const grouped = formattedPayments.reduce((acc, payment) => {
+      if (payment.date === "Total") return acc // Skip the global total row
+      const year = payment.date.split("/")[0] // Extract the year
+      if (!acc[year]) {
+        acc[year] = {
+          payments: [],
+          totals: { memAmount: 0, fineAmount: 0 },
+        }
+      }
 
+      acc[year].payments.push(payment)
+
+      acc[year].totals.memAmount += payment.memAmount || 0
+      acc[year].totals.fineAmount += payment.fineAmount || 0
+
+      return acc
+    }, {})
+
+    // Add totals to each year's group
+    Object.keys(grouped).forEach(year => {
+      grouped[year].payments.push({
+        date: "Total",
+        memAmount: grouped[year].totals.memAmount,
+        fineAmount: grouped[year].totals.fineAmount,
+      })
+    })
+    // const fineTotalAmount = allPayments.reduce(
+    //   (sum, payment) => sum + payment.fineAmount,
+    //   0
+    // );
     // console.log("Previous Due:", member.previousDue.totalDue);
 
     // Send the response with the previous due
     res.status(200).json({
-      previousDue: member.previousDue.totalDue,
+      message: "Payments fetched successfully",
+      
+      payments: grouped,
+     
     });
   } catch (error) {
     console.error("Error in getPayments:", error.message);
