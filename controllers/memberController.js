@@ -158,10 +158,15 @@ exports.getMyLoan = async (req, res) => {
     if (!loanDate || !remainingAmount || !paymentDate)
       return { int: 0, penInt: 0 };
     // console.log("paymentDate: ", paymentDate)
+    // console.log("lastIntPaymentDate: ", lastIntPaymentDate)
+    // console.log("loanDate: ", loanDate)
     const loanDateObj = new Date(loanDate);
-    const lastIntPayDateObj = new Date(lastIntPaymentDate || loanDate);
-    const currentDate = new Date(paymentDate);
+    const lastIntPayDateObj =
+      new Date(lastIntPaymentDate) ;
+    const currentDate = new Date();
     // console.log("currentDate :", currentDate)
+    // console.log("lastIntPayDateObj :", lastIntPayDateObj)
+    // console.log("loanDateObj :", loanDateObj)
     const monthlyInterestRate = 0.03;
     const loanPeriodMonths = 10;
 
@@ -185,6 +190,7 @@ exports.getMyLoan = async (req, res) => {
     }
 
     // console.log("totalMonths :", totalMonths)
+    // console.log("lastIntPayDateObj :", lastIntPayDateObj);
     let lastPaymentMonths =
       (lastIntPayDateObj.getFullYear() - loanDateObj.getFullYear()) * 12 +
       (lastIntPayDateObj.getMonth() - loanDateObj.getMonth());
@@ -192,7 +198,7 @@ exports.getMyLoan = async (req, res) => {
     // if ((lastIntPayDateObj.getDate() - loanDateObj.getDate())>0) {
     //   lastPaymentMonths=lastPaymentMonths+1
     // }
-    // console.log("lastPaymentMonths :", lastPaymentMonths)
+    // console.log("lastPaymentMonths :", lastPaymentMonths);
 
     const interestUnpaidMonths = Math.max(totalMonths - lastPaymentMonths, 0);
     // console.log("interestUnpaidMonths: ", interestUnpaidMonths)
@@ -211,6 +217,7 @@ exports.getMyLoan = async (req, res) => {
     // console.log('penaltyMonths: ', penaltyMonths)
     const interest =
       remainingAmount * interestUnpaidMonths * monthlyInterestRate;
+    // console.log("interest: ", interest);
     const penaltyInterest =
       remainingAmount * penaltyMonths * monthlyInterestRate;
     return {
@@ -331,7 +338,7 @@ exports.getMyLoan = async (req, res) => {
       const calculatedInterest = calculateInterest(
         loan.loanDate,
         loan.loanRemainingAmount,
-        lastIntPaymentDate,
+        lastIntPaymentDate.date,
         new Date()
       );
       // console.log("calculatedInterest: ", calculatedInterest);
