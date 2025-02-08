@@ -4,6 +4,8 @@ const {
   getMemberById,
   getProfileInfo,
   updateProfileInfo,
+  getMemberHasLoanById,
+  getMyLoan,
   getMember,
   getPayments,
   getMemberDueById,
@@ -17,6 +19,8 @@ router.get("/profile", authMiddleware(), getProfileInfo);
 // Route to update member profile information (requires authentication)
 router.put("/profile", authMiddleware(), updateProfileInfo);
 // Route to get  member info (requires authentication)
+router.get("/hasLoan", authMiddleware(), getMemberHasLoanById);
+router.get("/myLoan", authMiddleware(), getMyLoan);
 router.get("/getMemberById/:memberId", authMiddleware(), getMemberById);
 router.get("/info", authMiddleware(), getMember);
 router.get("/payments", authMiddleware(), getPayments);

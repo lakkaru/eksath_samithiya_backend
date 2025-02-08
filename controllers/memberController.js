@@ -4,7 +4,11 @@
 const jwt = require("jsonwebtoken"); // For decoding and verifying JWT tokens
 const bcrypt = require("bcrypt");
 const Member = require("../models/Member"); // Import the Member model
-const Dependent = require("../models/Dependent");
+const Dependant = require("../models/Dependent"); // Import the Member model
+const Loan = require("../models/Loan");
+const LoanPrinciplePayment = require("../models/LoanPayment"); // Adjust the path to the Loan model if necessary
+const LoanInterestPayment = require("../models/LoanInterestPayment"); // Adjust the path to the Loan model if necessary
+const PenaltyIntPayment = require("../models/LoanPenaltyIntPayment");
 const MembershipPayment = require("../models/MembershipPayment");
 const FinePayment = require("../models/FinePayment");
 
@@ -101,6 +105,251 @@ exports.updateProfileInfo = async (req, res) => {
     res
       .status(500)
       .json({ message: "Failed to update profile. Please try again later." });
+  }
+};
+
+//get member has loan
+exports.getMemberHasLoanById = async (req, res) => {
+  // console.log('has Loan')
+  try {
+    // Step 1: Extract the token from the request headers
+    const token = req.headers.authorization?.split(" ")[1]; // Extract "Bearer <token>"
+    if (!token) {
+      return res.status(401).json({ error: "Authorization token is missing" });
+    }
+
+    // Step 2: Verify and decode the token
+    let decoded;
+
+    try {
+      decoded = jwt.verify(token, JWT_SECRET); // Decode the token using the secret
+      // console.log('decoded.member_id: ', decoded.member_id)
+    } catch (error) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+    const member = await Member.findOne({ member_id: decoded.member_id });
+    const loan = await Loan.findOne({
+      memberId: member._id,
+      loanRemainingAmount: { $gt: 0 },
+    });
+    if (loan) {
+      return res.status(200).json({ loan: true });
+    } else {
+      return res.status(200).json({ loan: false });
+    }
+  } catch (error) {
+    console.error("Error fetching member profile:", error);
+    return res.status(500).json({
+      error: "An error occurred while fetching the profile information",
+    });
+  }
+};
+
+//get my loan
+exports.getMyLoan = async (req, res) => {
+  // console.log("my Loan");
+  //calculating interest for loan according to payment date
+  const calculateInterest = (
+    loanDate,
+    remainingAmount,
+    lastIntPaymentDate,
+    paymentDate
+  ) => {
+    if (!loanDate || !remainingAmount || !paymentDate)
+      return { int: 0, penInt: 0 };
+    // console.log("paymentDate: ", paymentDate)
+    const loanDateObj = new Date(loanDate);
+    const lastIntPayDateObj = new Date(lastIntPaymentDate || loanDate);
+    const currentDate = new Date(paymentDate);
+    // console.log("currentDate :", currentDate)
+    const monthlyInterestRate = 0.03;
+    const loanPeriodMonths = 10;
+
+    let totalMonths =
+      (currentDate.getFullYear() - loanDateObj.getFullYear()) * 12 +
+      (currentDate.getMonth() - loanDateObj.getMonth());
+    //adding one month if loan date is exceed
+    if (currentDate.getDate() - loanDateObj.getDate() > 0) {
+      totalMonths = totalMonths + 1;
+    }
+    //getting installment
+    let loanInstallment = 0;
+    // console.log('totalMonths:', totalMonths)
+    // console.log('remainingAmount:', remainingAmount)
+    if (totalMonths <= 10) {
+      loanInstallment = totalMonths * 1000 - (10000 - remainingAmount);
+      // console.log(loanInstallment)
+    } else {
+      loanInstallment = 10000 - remainingAmount;
+      // console.log(loanInstallment)
+    }
+
+    // console.log("totalMonths :", totalMonths)
+    let lastPaymentMonths =
+      (lastIntPayDateObj.getFullYear() - loanDateObj.getFullYear()) * 12 +
+      (lastIntPayDateObj.getMonth() - loanDateObj.getMonth());
+    // //adding one month if loan date is exceed
+    // if ((lastIntPayDateObj.getDate() - loanDateObj.getDate())>0) {
+    //   lastPaymentMonths=lastPaymentMonths+1
+    // }
+    // console.log("lastPaymentMonths :", lastPaymentMonths)
+
+    const interestUnpaidMonths = Math.max(totalMonths - lastPaymentMonths, 0);
+    // console.log("interestUnpaidMonths: ", interestUnpaidMonths)
+    let penaltyMonths = 0;
+    //checking loan is over due
+    if (totalMonths > 10) {
+      //penalty months
+      const dueMonths = totalMonths - loanPeriodMonths;
+      //checking if int payment has done before due
+      if (interestUnpaidMonths > dueMonths) {
+        penaltyMonths = dueMonths;
+      } else {
+        penaltyMonths = interestUnpaidMonths;
+      }
+    }
+    // console.log('penaltyMonths: ', penaltyMonths)
+    const interest =
+      remainingAmount * interestUnpaidMonths * monthlyInterestRate;
+    const penaltyInterest =
+      remainingAmount * penaltyMonths * monthlyInterestRate;
+    return {
+      int: Math.round(interest),
+      penInt: Math.round(penaltyInterest),
+      installment: Math.round(loanInstallment + interest + penaltyInterest),
+    };
+  };
+  try {
+    // Step 1: Extract the token from the request headers
+    const token = req.headers.authorization?.split(" ")[1]; // Extract "Bearer <token>"
+    if (!token) {
+      return res.status(401).json({ error: "Authorization token is missing" });
+    }
+
+    // Step 2: Verify and decode the token
+    let decoded;
+
+    try {
+      decoded = jwt.verify(token, JWT_SECRET); // Decode the token using the secret
+      // console.log('decoded.member_id: ', decoded.member_id)
+    } catch (error) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+    const member = await Member.findOne({ member_id: decoded.member_id });
+    const loan = await Loan.findOne({
+      memberId: member._id,
+      loanRemainingAmount: { $gt: 0 },
+    })
+      .populate({
+        path: "memberId",
+        select: "member_id name mobile",
+      })
+      .populate({
+        path: "guarantor1Id",
+        select: "member_id name mobile",
+      })
+      .populate({
+        path: "guarantor2Id",
+        select: "member_id name mobile",
+      });
+    // console.log('loan: ', loan)
+    let principlePayments = [];
+    let interestPayments = [];
+    let penaltyIntPayments = [];
+    let lastIntPaymentDate = "";
+    if (loan) {
+      principlePayments = await LoanPrinciplePayment.find({
+        loanId: loan?._id,
+      }).select("date amount");
+      interestPayments = await LoanInterestPayment.find({
+        loanId: loan?._id,
+      }).select("date amount");
+      penaltyIntPayments = await PenaltyIntPayment.find({
+        loanId: loan?._id,
+      }).select("date amount");
+      lastIntPaymentDate = await LoanInterestPayment.findOne({
+        loanId: loan?._id,
+      })
+        .sort({ date: -1 })
+        .select("date");
+
+      // ------------------------------------------------------------------------------
+      // const calculatedInterest = calculateInterest(
+      //   loan[0]?.date,
+      //   loan[0]?.loanRemainingAmount,
+      //   lastInterestPaymentDate=lastIntPaymentDate,
+      //   date
+      // )
+      // ------------------------------------------------------------------------------
+      // Helper function to group payments by date
+      const groupByDate = (payments) => {
+        return payments.reduce((acc, payment) => {
+          if (payment.date) {
+            const date = new Date(payment.date).toISOString().split("T")[0]; // Format date as YYYY-MM-DD
+            if (!acc[date]) {
+              acc[date] = [];
+            }
+            acc[date].push(payment);
+          }
+          return acc;
+        }, {});
+      };
+
+      // Group payments by date
+      const groupedPrinciplePayments = groupByDate(principlePayments);
+      const groupedInterestPayments = groupByDate(interestPayments);
+      const groupedPenaltyIntPayments = groupByDate(penaltyIntPayments);
+      // console.log('groupedPenaltyIntPayments: ', groupedPenaltyIntPayments)
+
+      // Combine grouped payments into an array of objects
+      const allDates = new Set([
+        ...Object.keys(groupedPrinciplePayments),
+        ...Object.keys(groupedInterestPayments),
+        ...Object.keys(groupedPenaltyIntPayments),
+      ]);
+      const groupedPayments = Array.from(allDates).map((date) => ({
+        date,
+        principleAmount:
+          groupedPrinciplePayments[date]?.reduce(
+            (sum, payment) => sum + payment.amount,
+            0
+          ) || 0,
+        interestAmount:
+          groupedInterestPayments[date]?.reduce(
+            (sum, payment) => sum + payment.amount,
+            0
+          ) || 0,
+        penaltyInterestAmount:
+          groupedPenaltyIntPayments[date]?.reduce(
+            (sum, payment) => sum + payment.amount,
+            0
+          ) || 0,
+      }));
+      // console.log("groupedPayments: ", groupedPayments);
+      // console.log("loan: ", loan);
+
+      const calculatedInterest = calculateInterest(
+        loan.loanDate,
+        loan.loanRemainingAmount,
+        lastIntPaymentDate,
+        new Date()
+      );
+      // console.log("calculatedInterest: ", calculatedInterest);
+      // Send the grouped payments in the response
+      res.status(200).json({
+        success: true,
+        loan,
+        groupedPayments,
+        calculatedInterest,
+      });
+    } else {
+      return res.status(200).json({ loan: false });
+    }
+  } catch (error) {
+    console.error("Error fetching loan info:", error);
+    return res.status(500).json({
+      error: "An error occurred while fetching the member loan info",
+    });
   }
 };
 
@@ -403,7 +652,7 @@ exports.getMemberDueById = async (req, res) => {
       (total, payment) => total + payment.amount,
       0 // Initial value for the total
     );
-   
+
     //calculating membership due for this year
     const currentMonth = new Date().getMonth() + 1;
     if (member.siblingsCount > 0) {
@@ -413,13 +662,12 @@ exports.getMemberDueById = async (req, res) => {
       membershipCharge = 300 * currentMonth;
     }
     const membershipDue = membershipCharge - totalMembershipPayments;
-  
 
     // Respond with member details
     res.status(200).json({
       member,
       totalDue,
-      membershipDue
+      membershipDue,
     });
   } catch (error) {
     console.error("Error fetching member data:", error);
