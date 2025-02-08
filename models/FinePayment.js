@@ -5,6 +5,7 @@ const FinePaymentSchema = new mongoose.Schema(
     date: {
       type: Date,
       required: true,
+      index:true
       // default: Date.now, // Default to the current date
     },
     memberId: {

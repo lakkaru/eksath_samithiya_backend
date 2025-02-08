@@ -1,6 +1,6 @@
 const MembershipPayment = require("../models/MembershipPayment");
 const FinePayment = require("../models/FinePayment");
-// const Member = require("../models/member");
+const Member = require ('../models/Member')
 
 
 exports.createReceipts = async (req, res) => {
@@ -27,7 +27,7 @@ exports.createReceipts = async (req, res) => {
       // console.log('member_Id: ', member_Id)
       try {
         // Create MembershipPayment record
-        if (memPayment) {
+        if (memPayment>0) {
           const newMembershipPayment = new MembershipPayment({
             date,
             memberId: member_Id,
@@ -38,13 +38,21 @@ exports.createReceipts = async (req, res) => {
         }
    
         // Create FinePayment record
-        if (finePayment) {
+        if (finePayment>0) {
           const newFinePayment = new FinePayment({
             date,
             memberId: member_Id,
             amount: finePayment,
           });
           await newFinePayment.save();
+          const member= await Member.findById({_id:member_Id})
+          // console.log('member: ', member)
+          if (member) {
+            member.previousDue -= finePayment; 
+            await member.save(); 
+          } else {
+            throw new Error("Member not found");
+          }
           finePayments++;
         }
       } catch (paymentError) {

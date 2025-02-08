@@ -17,13 +17,15 @@ router.get("/profile", authMiddleware(), getProfileInfo);
 // Route to update member profile information (requires authentication)
 router.put("/profile", authMiddleware(), updateProfileInfo);
 // Route to get  member info (requires authentication)
+router.get("/getMemberById/:memberId", authMiddleware(), getMemberById);
 router.get("/info", authMiddleware(), getMember);
 router.get("/payments", authMiddleware(), getPayments);
 router.get("/due", authMiddleware(), getMemberDueById);
 // Route to get member id object by member_id (requires authentication)
 // router.get("/_id/:memberId", authMiddleware(), get_id);
 // Route to get member  basic info by member_id(requires authentication)
-router.get("/getMemberById/:memberId", authMiddleware(), getMemberById);
+
+
 
 //getting admins for work assignments
 // router.get("/getAdminsForFuneral", adminController.getAdminsForFuneral);

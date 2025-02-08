@@ -10,7 +10,7 @@ const authMiddleware = require("../middleware/authMiddleware");
 //   getMemberLoanInfo
 // );
 //create new loan
-router.post("/receipts", authMiddleware([]), createReceipts);
+router.post("/receipts", authMiddleware(['treasurer']), createReceipts);
 
 //get all active loans
 // router.get("/active-loans", authMiddleware(["loan-treasurer"]), getActiveLoans);

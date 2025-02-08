@@ -37,7 +37,7 @@ exports.getActiveLoans = async (req, res) => {
         const lastInterestPayment = await LoanInterestPayment.findOne({
           loanId: loan._id,
         })
-          .sort({ paymentDate: -1 })
+          .sort({ date: -1 })
           .exec();
 
         let unpaidDuration = null;
@@ -50,6 +50,9 @@ exports.getActiveLoans = async (req, res) => {
               currentDate.getMonth() -
               lastPaymentDate.getMonth()
           );
+          console.log('lastPaymentDate: ', lastPaymentDate)
+          console.log('currentDate: ', currentDate)
+          console.log('unpaidDuration: ', unpaidDuration)
         } else {
           const loanStartDate = new Date(loan.loanDate);
           const currentDate = new Date();
@@ -80,8 +83,6 @@ exports.getActiveLoans = async (req, res) => {
     });
   }
 };
-
-
 
 //getting all loan info of a member
 exports.getMemberLoanInfo = async (req, res) => {
@@ -130,7 +131,7 @@ exports.getLoanOfMember = async (req, res) => {
   const { memberId } = req.params;
   // console.log(memberId)
   try {
-    const loans = await Loan.find({ memberId })
+    const loans = await Loan.find({ memberId , loanRemainingAmount: { $gt: 0 }})
       .populate({
         path: "memberId",
         select: "member_id name mobile",
@@ -183,6 +184,7 @@ exports.getLoanOfMember = async (req, res) => {
     const groupedPrinciplePayments = groupByDate(principlePayments);
     const groupedInterestPayments = groupByDate(interestPayments);
     const groupedPenaltyIntPayments = groupByDate(penaltyIntPayments);
+    // console.log('groupedPenaltyIntPayments: ', groupedPenaltyIntPayments)
 
     // Combine grouped payments into an array of objects
     const allDates = new Set([
@@ -229,9 +231,9 @@ exports.getLoanOfMember = async (req, res) => {
 // creating all payments for a loan
 exports.createLoanPayments = async (req, res) => {
   const { loanId, amounts, date } = req.body;
-  console.log("loanId: ", loanId);
-  console.log("amounts: ", amounts);
-  console.log("date: ", date);
+  // console.log("loanId: ", loanId);
+  // console.log("amounts: ", amounts);
+  // console.log("date: ", date);
   try {
     //creating new payments on loanPayments, loanInterestPayment, and loanPenaltyIntPayment
     const newPrinciplePayment = new LoanPrinciplePayment({

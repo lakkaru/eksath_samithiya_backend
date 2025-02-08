@@ -380,7 +380,7 @@ exports.getMemberDueById = async (req, res) => {
       0
     );
     //getting total of fins and previous dues
-    const totalDue = fineTotal + member.previousDue.totalDue;
+    const totalDue = fineTotal + member.previousDue;
     // //getting all membership payments done by member
     // const allMembershipPayments = await MembershipPayment.find({
     //   memberId: member._id,
@@ -403,6 +403,7 @@ exports.getMemberDueById = async (req, res) => {
       (total, payment) => total + payment.amount,
       0 // Initial value for the total
     );
+   
     //calculating membership due for this year
     const currentMonth = new Date().getMonth() + 1;
     if (member.siblingsCount > 0) {
