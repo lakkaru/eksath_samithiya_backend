@@ -336,9 +336,9 @@ exports.getMyLoan = async (req, res) => {
       // console.log("loan: ", loan);
 
       const calculatedInterest = calculateInterest(
-        loan.loanDate,
-        loan.loanRemainingAmount,
-        lastIntPaymentDate.date,
+        loan?.loanDate,
+        loan?.loanRemainingAmount,
+        lastIntPaymentDate?.date,
         new Date()
       );
       // console.log("calculatedInterest: ", calculatedInterest);
