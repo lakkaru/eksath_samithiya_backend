@@ -1,7 +1,16 @@
 const express = require("express");
 const router = express.Router();
-const {createReceipts} = require("../controllers/accountController"); // Adjust the path if needed
+const { createReceipts, getReceiptsByDate, deleteReceipt } = require("../controllers/accountController");
 const authMiddleware = require("../middleware/authMiddleware");
+
+// Get receipts by date
+router.get("/receipts", authMiddleware(['treasurer']), getReceiptsByDate);
+
+// Create new receipt
+router.post("/receipts", authMiddleware(['treasurer']), createReceipts);
+
+// Delete receipt
+router.delete("/receipts/:id/:memberId/:finePayment/:memPayment", authMiddleware(['treasurer']), deleteReceipt);
 
 //get all info about loans of member for new loan
 // router.get(
@@ -10,7 +19,7 @@ const authMiddleware = require("../middleware/authMiddleware");
 //   getMemberLoanInfo
 // );
 //create new loan
-router.post("/receipts", authMiddleware(['treasurer']), createReceipts);
+// router.post("/receipts", authMiddleware(['treasurer']), createReceipts);
 
 //get all active loans
 // router.get("/active-loans", authMiddleware(["loan-treasurer"]), getActiveLoans);

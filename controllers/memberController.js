@@ -185,7 +185,7 @@ exports.getMyLoan = async (req, res) => {
       loanInstallment = totalMonths * 1000 - (10000 - remainingAmount);
       // console.log(loanInstallment)
     } else {
-      loanInstallment = 10000 - remainingAmount;
+      loanInstallment = remainingAmount;
       // console.log(loanInstallment)
     }
 
