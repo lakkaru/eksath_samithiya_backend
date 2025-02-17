@@ -9,6 +9,9 @@ const {
   getMember,
   getPayments,
   getMemberDueById,
+  getFamily,
+  updateDiedStatus,
+  updateDependentDiedStatus,
 } = require("../controllers/memberController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -25,6 +28,12 @@ router.get("/getMemberById/:memberId", authMiddleware(), getMemberById);
 router.get("/info", authMiddleware(), getMember);
 router.get("/payments", authMiddleware(), getPayments);
 router.get("/due", authMiddleware(), getMemberDueById);
+//for vice-secretory
+router.get("/getFamily/:member_id", authMiddleware(['vice-secretary']), getFamily);
+router.post("/updateDiedStatus", authMiddleware(['vice-secretary']), updateDiedStatus);
+router.post("/updateDependentDiedStatus", authMiddleware(['vice-secretary']), updateDependentDiedStatus);
+
+
 // Route to get member id object by member_id (requires authentication)
 // router.get("/_id/:memberId", authMiddleware(), get_id);
 // Route to get member  basic info by member_id(requires authentication)
