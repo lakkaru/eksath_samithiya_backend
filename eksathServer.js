@@ -8,6 +8,8 @@ const authRoutes = require("./routes/authRoutes");
 const memberRoutes = require("./routes/memberRoutes");
 const loanRoutes = require("./routes/loanRoutes");
 const accountRoutes = require("./routes/accountRoutes");
+const funeralRoutes = require("./routes/funeralRoutes");
+const formsRoutes = require("./routes/formsRoutes");
 
 const PORT = process.env.PORT || 5000;
 
@@ -42,6 +44,8 @@ app.use("/auth", authRoutes);
 app.use("/member", memberRoutes);
 app.use("/loan", loanRoutes);
 app.use("/account", accountRoutes);
+app.use("/funeral", funeralRoutes);
+app.use("/forms", formsRoutes);
 
 //Start the server
 app.listen(PORT, () => {

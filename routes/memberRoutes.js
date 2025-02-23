@@ -12,6 +12,11 @@ const {
   getFamily,
   updateDiedStatus,
   updateDependentDiedStatus,
+  getActiveMembers,
+  getAdminsForFuneral,
+  getMembershipDeathById,
+  getNextId,
+  getMemberIdsForFuneralAttendance,
 } = require("../controllers/memberController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -29,16 +34,42 @@ router.get("/info", authMiddleware(), getMember);
 router.get("/payments", authMiddleware(), getPayments);
 router.get("/due", authMiddleware(), getMemberDueById);
 //for vice-secretory
-router.get("/getFamily/:member_id", authMiddleware(['vice-secretary']), getFamily);
-router.post("/updateDiedStatus", authMiddleware(['vice-secretary']), updateDiedStatus);
-router.post("/updateDependentDiedStatus", authMiddleware(['vice-secretary']), updateDependentDiedStatus);
-
+router.get(
+  "/getFamily/:member_id",
+  authMiddleware(["vice-secretary"]),
+  getFamily
+);
+router.post(
+  "/updateDiedStatus",
+  authMiddleware(["vice-secretary"]),
+  updateDiedStatus
+);
+router.post(
+  "/updateDependentDiedStatus",
+  authMiddleware(["vice-secretary"]),
+  updateDependentDiedStatus
+);
+router.get(
+  "/getActiveMembers",
+  authMiddleware(["vice-secretary"]),
+  getActiveMembers
+);
+router.get(
+  "/getAdminsForFuneral",
+  authMiddleware(["vice-secretary"]),
+  getAdminsForFuneral
+);
+router.get(
+  "/getMembershipDeathById",
+  authMiddleware(["vice-secretary"]),
+  getMembershipDeathById
+);
+router.get("/getNextId", authMiddleware(["vice-secretary"]), getNextId);
+router.get("/getMemberIdsForFuneralAttendance", authMiddleware(["vice-secretary"]), getMemberIdsForFuneralAttendance);
 
 // Route to get member id object by member_id (requires authentication)
 // router.get("/_id/:memberId", authMiddleware(), get_id);
 // Route to get member  basic info by member_id(requires authentication)
-
-
 
 //getting admins for work assignments
 // router.get("/getAdminsForFuneral", adminController.getAdminsForFuneral);

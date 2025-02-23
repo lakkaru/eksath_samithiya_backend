@@ -6,7 +6,7 @@ const {
   getActiveLoans,
   getLoanOfMember,
   createLoanPayments,
-} = require("../controllers/loanController"); // Adjust the path if needed
+} = require("../controllers/loanController");
 const authMiddleware = require("../middleware/authMiddleware");
 
 //get all info about loans of member for new loan

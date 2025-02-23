@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken"); // For decoding and verifying JWT tokens
 const bcrypt = require("bcrypt");
 const Member = require("../models/Member"); // Import the Member model
 const Dependant = require("../models/Dependent"); // Import the Member model
+const Admin = require("../models/Admin");
 const Loan = require("../models/Loan");
 const LoanPrinciplePayment = require("../models/LoanPayment"); // Adjust the path to the Loan model if necessary
 const LoanInterestPayment = require("../models/LoanInterestPayment"); // Adjust the path to the Loan model if necessary
@@ -776,7 +777,7 @@ exports.updateDiedStatus = async (req, res) => {
 //update the Dependent death
 exports.updateDependentDiedStatus = async (req, res) => {
   const { _id, dateOfDeath } = req.body;
-  console.log('dateOfDeath: ', dateOfDeath)
+  console.log("dateOfDeath: ", dateOfDeath);
   // Input validation
   // if (typeof member_id !== "number") {
   //   return res.status(400).json({
@@ -829,5 +830,244 @@ exports.updateDependentDiedStatus = async (req, res) => {
       message: "Error updating died status.",
       error: error.message,
     });
+  }
+};
+
+// Retrieve all members who are active !(deactivated)
+exports.getActiveMembers = async (req, res) => {
+  try {
+    const members = await Member.find({
+      $or: [
+        { deactivated_at: { $exists: false } }, // No deactivatedDate field
+        { deactivated_at: null }, // deactivatedDate is explicitly null
+      ],
+    })
+      .select("-password")
+      .sort("member_id"); // Excludes the password field
+    res.status(200).json({ success: true, data: members });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching members.",
+      error: error.message,
+    });
+  }
+};
+
+//get admins for funeral
+exports.getAdminsForFuneral = async (req, res) => {
+  try {
+    const { area } = req.query;
+    // console.log("area from create admins: ", area);
+    // Generalize the area for matching
+    const baseArea = area.replace(/\s*\d+$/, "").trim();
+
+    const result = await Admin.findOne(
+      { "areaAdmins.area": { $regex: `^${baseArea}`, $options: "i" } }, // Match the area admin
+      {
+        chairman: 1,
+        secretary: 1,
+        viceChairman: 1,
+        viceSecretary: 1,
+        treasurer: 1,
+        loanTreasurer: 1,
+        "areaAdmins.$": 1, // Return only the matching areaAdmin
+      }
+    ).lean();
+
+    if (result) {
+      // Collect all member IDs from main admins
+      const memberIds = [
+        result.chairman?.memberId,
+        result.secretary?.memberId,
+        result.viceChairman?.memberId,
+        result.viceSecretary?.memberId,
+        result.treasurer?.memberId,
+        result.loanTreasurer?.memberId,
+      ];
+
+      // If an areaAdmin is found, add its memberId and helpers' memberIds
+      if (result.areaAdmins && result.areaAdmins.length > 0) {
+        const { memberId, helper1, helper2 } = result.areaAdmins[0];
+        memberIds.push(memberId, helper1?.memberId, helper2?.memberId);
+      }
+
+      // Filter out null/undefined values
+      const uniqueMemberIds = [...new Set(memberIds.filter(Boolean))].sort(
+        (a, b) => a - b
+      );
+
+      res.status(200).json(uniqueMemberIds);
+    } else {
+      res.status(404).json({ message: "No matching data found." });
+    }
+  } catch (error) {
+    console.error("Error getting Admin IDs:", error.message);
+    res
+      .status(500)
+      .json({ message: "Error getting Admin IDs", error: error.message });
+  }
+};
+
+//get membership death details
+exports.getMembershipDeathById = async (req, res) => {
+  try {
+    const { member_id } = req.query;
+    // console.log(member_id)
+    // Find the member by member_id and populate dependents
+    const member = await Member.findOne({ member_id })
+      .populate("dependents", "name relationship dateOfDeath") // Populate dependents with necessary fields
+      .select("_id member_id name dateOfDeath dependents area");
+
+    if (!member) {
+      return res.status(404).json({ error: "Member not found" });
+    }
+
+    // Check for deceased dependents
+    const deceasedDependents = member.dependents.filter(
+      (dependent) => dependent.dateOfDeath
+    );
+
+    // If member or any dependent has `dateOfDeath`, return the information
+    if (member.dateOfDeath || deceasedDependents.length > 0) {
+      return res.status(200).json({
+        message: "Deceased member or dependents retrieved",
+        data: {
+          member: {
+            _id: member._id,
+            member_id: member.member_id,
+            name: member.name,
+            area: member.area,
+            mob_tel: member.mob_tel,
+            res_tel: member.res_tel,
+            dateOfDeath: member.dateOfDeath,
+          },
+          dependents: deceasedDependents, // Array of deceased dependents
+        },
+      });
+    }
+
+    // If no `dateOfDeath` for member or dependents, return an empty array
+    return res.status(200).json({
+      message: "No deceased member or dependents found",
+      data: [],
+    });
+  } catch (error) {
+    console.error("Error retrieving member and dependents:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Get next member ID
+exports.getNextId = async (req, res) => {
+  try {
+    // Find the member with the highest member_id
+    const highestMember = await Member.findOne({})
+      .sort({ member_id: -1 }) // Sort by member_id in descending order
+      .select("member_id"); // Only select the member_id field
+
+    // Determine the next member_id
+    const nextMemberId = highestMember ? highestMember.member_id + 1 : 1;
+
+    res.status(200).json({
+      success: true,
+      nextMemberId,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error getting next memberId.",
+      error: error.message,
+    });
+  }
+};
+
+//get all member ids for funeral attendance chart
+exports.getMemberIdsForFuneralAttendance = async (req, res) => {
+  try {
+    const members = await Member.find({
+      $or: [
+        { deactivated_at: { $exists: false } }, // No deactivatedDate field
+        { deactivated_at: null },
+      ],
+      status: { $nin: ["attendance-free", "free"] },
+    })
+      .select("member_id") // Select only the member_id field
+      .sort("member_id"); // Sort by member_id
+
+    const memberIds = members.map((member) => member.member_id);
+    res.status(200).json({ success: true, memberIds: memberIds });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching members.",
+      error: error.message,
+    });
+  }
+};
+
+// Get all member dues for meeting sign sheet
+exports.getDueForMeetingSign = async (req, res) => {
+  try {
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() ; // Months are 0-based in JS
+
+    // Get all active members
+    const members = await Member.find({
+      status: { $ne: "free" }, // Exclude members with status 'free'
+      deactivated_at: null, // Exclude deactivated members
+    }).select("_id member_id name previousDue fines").sort("member_id");
+
+    // Get membership payments for the current year
+    const payments = await MembershipPayment.aggregate([
+      {
+        $match: {
+          date: {
+            $gte: new Date(`${currentYear}-01-01`), // Start of current year
+            $lt: new Date(`${currentYear + 1}-01-01`), // Start of next year
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$memberId",
+          totalPaid: { $sum: "$amount" },
+        },
+      },
+    ]);
+
+    // Convert payments to a map for quick lookup
+    const paymentMap = new Map();
+    payments.forEach((payment) => {
+      paymentMap.set(payment._id.toString(), payment.totalPaid);
+    });
+
+    // Calculate total dues for each member
+    const memberDues = members.map((member) => {
+      const totalPaid = paymentMap.get(member._id.toString()) || 0;
+      const membershipDue = currentMonth * 300 - totalPaid;
+      const totalFines = member.fines.reduce(
+        (sum, fine) => sum + fine.amount,
+        0
+      );
+      const totalDue =
+        (membershipDue) +
+        member.previousDue +
+        totalFines;
+
+      return {
+        member_id: member.member_id,
+        // name: member.name,
+        // membershipDue: membershipDue < 0 ? 0 : membershipDue,
+        // previousDue: member.previousDue,
+        // totalFines: totalFines,
+        totalDue: totalDue, // Total amount due
+      };
+    });
+
+    res.status(200).json(memberDues);
+  } catch (error) {
+    console.error("Error fetching total dues:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
