@@ -12,6 +12,7 @@ const LoanInterestPayment = require("../models/LoanInterestPayment"); // Adjust 
 const PenaltyIntPayment = require("../models/LoanPenaltyIntPayment");
 const MembershipPayment = require("../models/MembershipPayment");
 const FinePayment = require("../models/FinePayment");
+const Funeral = require("../models/Funeral");
 
 // Environment variable for JWT secret
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -607,6 +608,82 @@ exports.getPayments = async (req, res) => {
   }
 };
 
+//get fines data for member fines page
+exports.getFines = async (req, res) => {
+  try {
+    // Getting the authorization token
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ error: "Authorization token is missing" });
+    }
+
+    // Decode the token to extract member information
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const memberId = decoded.member_id;
+
+    // Get member ID object
+    const member_Id = await Member.findOne({ member_id: memberId }).select("_id");
+    if (!member_Id) {
+      return res.status(404).json({ error: "Member not found" });
+    }
+
+    // Fetch member fines
+    const memberData = await Member.findById(member_Id).select("fines");
+    const memberFines = memberData?.fines || [];
+
+    // Process fines asynchronously
+    const finePromises = memberFines.map((fine) => {
+      const fineType = fine.eventType;
+      const fineAmount = fine.amount;
+
+      if (fineType === "funerals") {
+        return Funeral.findById(fine.eventId)
+          .select("date member_id")
+          .populate("member_id", "name area")
+          .then((funeral) => {
+            if (!funeral) {
+              console.error(`Funeral not found for eventId: ${fine.eventId}`);
+              return null;
+            }
+
+            const date = new Date(funeral.date).toISOString().split("T")[0];
+
+            return {
+              date,
+              fineType:`${funeral.member_id?.area } ${funeral.member_id?.name} ගේ සාමාජිකත්වය යටතේ අවමංගල්‍ය `,
+              fineAmount,
+              name: funeral.member_id?.name || "Unknown",
+              area: funeral.member_id?.area || "Unknown",
+            };
+          })
+          .catch((err) => {
+            console.error("Error fetching funeral:", err);
+            return null;
+          });
+      }
+
+      return null;
+    });
+
+    // ✅ Wait for all fine processing to complete
+    const fines = (await Promise.all(finePromises)).filter(Boolean);
+
+    // console.log("Final fines list:", fines);
+
+    // ✅ Send the response with the properly populated fines array
+    res.status(200).json({
+      message: "Fines fetched successfully",
+      fines: fines,
+    });
+  } catch (error) {
+    console.error("Error in getFines:", error.message);
+    res.status(500).json({
+      error: "An error occurred while fetching fine data",
+      message: error.message,
+    });
+  }
+};
+
 //get data of the member for account receipt page
 exports.getMemberDueById = async (req, res) => {
   const { member_id } = req.query;
@@ -1010,13 +1087,15 @@ exports.getMemberIdsForFuneralAttendance = async (req, res) => {
 exports.getDueForMeetingSign = async (req, res) => {
   try {
     const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() ; // Months are 0-based in JS
+    const currentMonth = new Date().getMonth(); // Months are 0-based in JS
 
     // Get all active members
     const members = await Member.find({
       status: { $ne: "free" }, // Exclude members with status 'free'
       deactivated_at: null, // Exclude deactivated members
-    }).select("_id member_id name previousDue fines").sort("member_id");
+    })
+      .select("_id member_id name previousDue fines")
+      .sort("member_id");
 
     // Get membership payments for the current year
     const payments = await MembershipPayment.aggregate([
@@ -1050,10 +1129,7 @@ exports.getDueForMeetingSign = async (req, res) => {
         (sum, fine) => sum + fine.amount,
         0
       );
-      const totalDue =
-        (membershipDue) +
-        member.previousDue +
-        totalFines;
+      const totalDue = membershipDue + member.previousDue + totalFines;
 
       return {
         member_id: member.member_id,

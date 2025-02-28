@@ -8,6 +8,7 @@ const {
   getMyLoan,
   getMember,
   getPayments,
+  getFines,
   getMemberDueById,
   getFamily,
   updateDiedStatus,
@@ -32,6 +33,7 @@ router.get("/myLoan", authMiddleware(), getMyLoan);
 router.get("/getMemberById/:memberId", authMiddleware(), getMemberById);
 router.get("/info", authMiddleware(), getMember);
 router.get("/payments", authMiddleware(), getPayments);
+router.get("/fines", authMiddleware(), getFines);
 router.get("/due", authMiddleware(), getMemberDueById);
 //for vice-secretory
 router.get(
