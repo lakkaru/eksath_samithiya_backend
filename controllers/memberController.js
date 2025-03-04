@@ -622,7 +622,9 @@ exports.getFines = async (req, res) => {
     const memberId = decoded.member_id;
 
     // Get member ID object
-    const member_Id = await Member.findOne({ member_id: memberId }).select("_id");
+    const member_Id = await Member.findOne({ member_id: memberId }).select(
+      "_id"
+    );
     if (!member_Id) {
       return res.status(404).json({ error: "Member not found" });
     }
@@ -650,7 +652,7 @@ exports.getFines = async (req, res) => {
 
             return {
               date,
-              fineType:`${funeral.member_id?.area } ${funeral.member_id?.name} ගේ සාමාජිකත්වය යටතේ අවමංගල්‍ය `,
+              fineType: `${funeral.member_id?.area} ${funeral.member_id?.name} ගේ සාමාජිකත්වය යටතේ අවමංගල්‍ය `,
               fineAmount,
               name: funeral.member_id?.name || "Unknown",
               area: funeral.member_id?.area || "Unknown",
@@ -1145,5 +1147,35 @@ exports.getDueForMeetingSign = async (req, res) => {
   } catch (error) {
     console.error("Error fetching total dues:", error);
     res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+//delete a fine by fine id
+exports.deleteFineById = async (req, res) => {
+  try {
+    console.log(req.body);
+    const { member_id, fine_id } = req.body;
+
+    // Find and update the member by removing the fine with the given fine_id
+    const updatedMember = await Member.findOneAndUpdate(
+      { member_id: member_id },
+      { $pull: { fines: { _id: fine_id } } }, // Remove fine with matching _id
+      { new: false }
+    ).select("member_id name fines");
+
+    console.log("Updated Member:", updatedMember);
+
+    if (!updatedMember) {
+      return res
+        .status(404)
+        .json({ message: "Member not found or fine not deleted" });
+    }
+
+    res.status(200).json({
+      message: "Fine deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting fine:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };

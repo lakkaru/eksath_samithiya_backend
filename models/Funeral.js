@@ -37,6 +37,10 @@ const FuneralSchema = new mongoose.Schema(
       type: Array,
       default: []
     },
+    extraDueMembers: {
+      type: Array,
+      default: []
+    },
     
   },
   {

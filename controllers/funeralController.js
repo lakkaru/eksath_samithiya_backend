@@ -90,8 +90,8 @@ exports.updateFuneralAbsents = async (req, res) => {
   try {
     const fineAmount = 100;
     const { funeral_id, absentArray } = req.body.absentData;
-    console.log(funeral_id, absentArray);
-  //  return
+    // console.log(funeral_id, absentArray);
+    //  return
     // Check if both funeral_id and absentArray are provided
     if (!funeral_id || !Array.isArray(absentArray)) {
       return res.status(400).json({ message: "Invalid request data." });
@@ -133,6 +133,121 @@ exports.updateFuneralAbsents = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating funeral absents:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+//update funeral extraDue fines
+exports.updateMemberExtraDueFines = async (req, res) => {
+  // console.log('first')
+  try {
+    const dueData = req.body;
+    console.log(dueData);
+    if (!dueData) {
+      return res.status(400).json({ message: "Invalid request data." });
+    }
+    //get member object id
+    const member_Id = await Member.findOne({
+      member_id: dueData.dueMemberId,
+    }).select("_id");
+    // console.log('memberId :', member_id);
+    //het funeral object id
+    const eventId = await Funeral.findOne({
+      deceased_id: dueData.deceased_id,
+    }).select("_id");
+    // console.log("eventId :", eventId);
+    //update funeral for extraDue members
+    const updatedFuneral = await Funeral.findByIdAndUpdate(eventId, {
+      $addToSet: { extraDueMembers: dueData.dueMemberId },
+    });
+    // Update fines of the member
+    const updatedDue = await Member.findByIdAndUpdate(
+      member_Id,
+      {
+        $push: {
+          // Use MongoDB's $push to add a new fine to the array
+          fines: {
+            eventId: eventId,
+            eventType: "extraDue",
+            amount: dueData.amount,
+          },
+        },
+      },
+      { new: false } // Return the updated document
+    );
+    // console.log("updatedDue: ", updatedDue);
+    const { member_id, name, fines } = updatedDue;
+    res.status(200).json({
+      message: "Funeral extra due updated successfully.",
+      updatedDue: { member_id, name, fines },
+    });
+  } catch (error) {}
+};
+
+//get Funeral Extra Due Members By DeceasedId
+exports.getFuneralExDueMembersByDeceasedId = async (req, res) => {
+  try {
+    const { deceased_id } = req.query;
+
+    // Find funeral details and select only extraDueMembers
+    const { extraDueMembers, _id: funeralId } = await Funeral.findOne({
+      deceased_id,
+    }).select("_id extraDueMembers");
+    // console.log("extraDueMembers: ", extraDueMembers);
+    // console.log("funeralId: ", funeralId);
+
+    if (!extraDueMembers) {
+      return res.status(404).json({ message: "No funeral found." });
+    }
+
+    // Use Promise.all to resolve all member lookups
+    const extraDueMembersInfo = await Promise.all(
+      extraDueMembers.map(async (memberId) => {
+        const extraDueMember = await Member.findOne({
+          member_id: memberId,
+        }).select("-_id member_id name fines");
+
+        if (!extraDueMember) return null; // Handle case where the member is not found
+        // console.log("eventId: ", extraDueMember._id);
+        // Filter fines to only include those that match the eventId
+        const filteredFines = extraDueMember.fines.filter(
+          (fine) => fine.eventId.toString() === funeralId.toString()&& fine.eventType === "extraDue"
+        );
+        // console.log("filteredFines: ", filteredFines);
+        return {
+          member_id: extraDueMember.member_id,
+          name: extraDueMember.name,
+          fines: filteredFines, // Only matching fines
+        };
+      })
+    );
+    // console.log("extraDueMembersInfo: ", extraDueMembersInfo);
+    // console.log("extraDueMembersInfo fines: ", extraDueMembersInfo[0].fines);
+    // Remove any null values if some members were not found
+    // const filteredExtraDueMembers = extraDueMembers.filter(
+    //   (member) => member !== null
+    // );
+    //structured dues for a member on selected deceased
+    const mappedExtraDues = extraDueMembersInfo.map((member) => {
+      return member.fines.map((fine) => {
+        return {
+          memberId: member.member_id,
+          name: member.name,
+          extraDue: fine.amount,
+          id:fine._id,
+        };
+      });
+    });
+    // console.log("mappedExtraDues: ", mappedExtraDues);
+    //getting all to an array
+    const extraDueMembersPaidInfo = mappedExtraDues.flat();
+    // console.log("extraDueMembersPaidInfo :", extraDueMembersPaidInfo);
+    res.status(200).json({
+      message: "Funeral extra due fetched successfully.",
+      extraDueMembersPaidInfo: extraDueMembersPaidInfo.reverse(),
+    });
+  } catch (error) {
+    console.error("Error fetching extra due members:", error);
     res.status(500).json({ message: "Internal server error." });
   }
 };
