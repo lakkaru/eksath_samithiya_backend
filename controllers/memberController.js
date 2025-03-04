@@ -662,33 +662,33 @@ exports.getFines = async (req, res) => {
             console.error("Error fetching funeral:", err);
             return null;
           });
-      }
-      else{
-      if (fineType === "extraDue") {
-        return Funeral.findById(fine.eventId)
-          .select("date member_id")
-          .populate("member_id", "name area")
-          .then((funeral) => {
-            if (!funeral) {
-              console.error(`Funeral not found for eventId: ${fine.eventId}`);
+      } else {
+        if (fineType === "extraDue") {
+          return Funeral.findById(fine.eventId)
+            .select("date member_id")
+            .populate("member_id", "name area")
+            .then((funeral) => {
+              if (!funeral) {
+                console.error(`Funeral not found for eventId: ${fine.eventId}`);
+                return null;
+              }
+
+              const date = new Date(funeral.date).toISOString().split("T")[0];
+
+              return {
+                date,
+                fineType: `${funeral.member_id?.area} ${funeral.member_id?.name} ගේ සාමාජිකත්වය යටතේ අවමංගල්‍යයට අතිරේක ආධාර `,
+                fineAmount,
+                name: funeral.member_id?.name || "Unknown",
+                area: funeral.member_id?.area || "Unknown",
+              };
+            })
+            .catch((err) => {
+              console.error("Error fetching funeral:", err);
               return null;
-            }
-
-            const date = new Date(funeral.date).toISOString().split("T")[0];
-
-            return {
-              date,
-              fineType: `${funeral.member_id?.area} ${funeral.member_id?.name} ගේ සාමාජිකත්වය යටතේ අවමංගල්‍යයට අතිරේක ආධාර `,
-              fineAmount,
-              name: funeral.member_id?.name || "Unknown",
-              area: funeral.member_id?.area || "Unknown",
-            };
-          })
-          .catch((err) => {
-            console.error("Error fetching funeral:", err);
-            return null;
-          });
-      }}
+            });
+        }
+      }
 
       return null;
     });
@@ -1142,7 +1142,7 @@ exports.getDueForMeetingSign = async (req, res) => {
         },
       },
     ]);
-
+    // console.log("payments :", payments);
     // Convert payments to a map for quick lookup
     const paymentMap = new Map();
     payments.forEach((payment) => {
@@ -1153,7 +1153,7 @@ exports.getDueForMeetingSign = async (req, res) => {
     const memberDues = members.map((member) => {
       const totalPaid = paymentMap.get(member._id.toString()) || 0;
       const membershipDue = currentMonth * 300 - totalPaid;
-      const totalFines = member.fines.reduce(
+      const totalFines = member.fines?.reduce(
         (sum, fine) => sum + fine.amount,
         0
       );
