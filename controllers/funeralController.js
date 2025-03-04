@@ -116,7 +116,7 @@ exports.updateFuneralAbsents = async (req, res) => {
           $push: {
             fines: {
               eventId: funeral_id,
-              eventType: "funerals",
+              eventType: "funeral",
               amount: fineAmount,
             },
           },
