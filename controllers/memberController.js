@@ -398,9 +398,9 @@ exports.getMember = async (req, res) => {
     );
     // console.log(member._id);
     //getting all membership payments done by member
-    const allMembershipPayments = await MembershipPayment.find({
-      memberId: member._id,
-    });
+    // const allMembershipPayments = await MembershipPayment.find({
+    //   memberId: member._id,
+    // });
     //calculating membership payment due for this year
     //getting membership payments for this year
     const currentYear = new Date().getFullYear();
@@ -414,13 +414,26 @@ exports.getMember = async (req, res) => {
         $lt: endOfYear,
       },
     }).select("date amount");
+
+    const finePayments=await FinePayment.find({ memberId: member._id,
+      date: {
+        $gte: startOfYear,
+        $lt: endOfYear,
+      },}).select("date amount");
+      // console.log('finePayments:', finePayments)
     //getting total membership payments for this year
     const totalMembershipPayments = membershipPayments.reduce(
       (total, payment) => total + payment.amount,
       0 // Initial value for the total
     );
+    //getting total fine payments for this year
+    const totalFinePayments = finePayments.reduce(
+      (total, payment) => total + payment.amount,
+      0 // Initial value for the total
+    );
+    // console.log('totalFinePayments: ', totalFinePayments)
     //calculating membership due for this year
-    const currentMonth = new Date().getMonth() + 1;
+    const currentMonth = new Date().getMonth() ;
     if (member.siblingsCount > 0) {
       membershipCharge =
         (300 * member.siblingsCount * 0.3 + 300) * currentMonth;
@@ -442,6 +455,7 @@ exports.getMember = async (req, res) => {
       dependents: member.dependents.map((dependent) => dependent.name),
       fineTotal, // Use the calculated fineTotal
       membershipDue: membershipDue,
+      fineDue:fineTotal-totalFinePayments,
     });
   } catch (error) {
     console.error("Error fetching member data:", error);
@@ -1126,7 +1140,7 @@ exports.getDueForMeetingSign = async (req, res) => {
       .sort("member_id");
 
     // Get membership payments for the current year
-    const payments = await MembershipPayment.aggregate([
+    const membershipPayments = await MembershipPayment.aggregate([
       {
         $match: {
           date: {
@@ -1142,22 +1156,47 @@ exports.getDueForMeetingSign = async (req, res) => {
         },
       },
     ]);
-    // console.log("payments :", payments);
     // Convert payments to a map for quick lookup
-    const paymentMap = new Map();
-    payments.forEach((payment) => {
-      paymentMap.set(payment._id.toString(), payment.totalPaid);
+    const membershipPaymentMap = new Map();
+    membershipPayments.forEach((payment) => {
+      membershipPaymentMap.set(payment._id.toString(), payment.totalPaid);
     });
 
-    // Calculate total dues for each member
+    // Get fine payments for the current year
+    const finePayments = await FinePayment.aggregate([
+      {
+        $match: {
+          date: {
+            $gte: new Date(`${currentYear}-01-01`), // Start of current year
+            $lt: new Date(`${currentYear + 1}-01-01`), // Start of next year
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$memberId",
+          totalPaid: { $sum: "$amount" },
+        },
+      },
+    ]);
+    // console.log("finePayments :", finePayments);
+    // Convert payments to a map for quick lookup
+    const finePaymentMap = new Map();
+    finePayments.forEach((payment) => {
+      finePaymentMap.set(payment._id.toString(), payment.totalPaid);
+    });
+
+    // Calculate total membership dues for each member
     const memberDues = members.map((member) => {
-      const totalPaid = paymentMap.get(member._id.toString()) || 0;
-      const membershipDue = currentMonth * 300 - totalPaid;
+      const memberShipTotalPaid = membershipPaymentMap.get(member._id.toString()) || 0;
+      const membershipDue = currentMonth * 300 - memberShipTotalPaid;
       const totalFines = member.fines?.reduce(
         (sum, fine) => sum + fine.amount,
         0
       );
-      const totalDue = membershipDue + member.previousDue + totalFines;
+      const fineTotalPaid = finePaymentMap.get(member._id.toString()) || 0;
+
+      const totalDue = membershipDue + member.previousDue + totalFines-fineTotalPaid;
 
       return {
         member_id: member.member_id,

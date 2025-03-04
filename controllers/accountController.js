@@ -109,11 +109,11 @@ exports.createReceipts = async (req, res) => {
       savedFinePayment = await newFinePayment.save();
 
       // Update member's previousDue
-      const member = await Member.findById(member_Id);
-      if (member) {
-        member.previousDue -= finePayment;
-        await member.save();
-      }
+      // const member = await Member.findById(member_Id);
+      // if (member) {
+      //   member.previousDue -= finePayment;
+      //   await member.save();
+      // }
     }
 
     res.status(200).json({
