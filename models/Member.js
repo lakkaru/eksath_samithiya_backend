@@ -64,6 +64,9 @@ const MemberSchema = new Schema(
     dependents: {
       type: [{ type: mongoose.Schema.Types.ObjectId, ref: "Dependent" }],
     },
+    siblingsCount: { 
+      type: Number, 
+      default: 0 },
     deactivated_at: {
       type: Date,
       default: null,

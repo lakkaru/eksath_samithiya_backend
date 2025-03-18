@@ -701,8 +701,32 @@ exports.getFines = async (req, res) => {
               console.error("Error fetching funeral:", err);
               return null;
             });
-        }
-      }
+        }else{ if (fineType === "funeral-ceremony") {
+          return Funeral.findById(fine.eventId)
+            .select("date member_id")
+            .populate("member_id", "name area")
+            .then((funeral) => {
+              if (!funeral) {
+                console.error(`Funeral not found for eventId: ${fine.eventId}`);
+                return null;
+              }
+  
+              const date = new Date(funeral.date).toISOString().split("T")[0];
+  
+              return {
+                date,
+                fineType: `${funeral.member_id?.area} ${funeral.member_id?.name} ගේ සාමාජිකත්වය යටතේ අවමංගල්‍යයට දේහය ගෙන යාම`,
+                fineAmount,
+                name: funeral.member_id?.name || "Unknown",
+                area: funeral.member_id?.area || "Unknown",
+              };
+            })
+            .catch((err) => {
+              console.error("Error fetching funeral:", err);
+              return null;
+            });
+        }}
+      } 
 
       return null;
     });
