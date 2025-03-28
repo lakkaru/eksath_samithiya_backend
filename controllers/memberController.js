@@ -415,12 +415,14 @@ exports.getMember = async (req, res) => {
       },
     }).select("date amount");
 
-    const finePayments=await FinePayment.find({ memberId: member._id,
+    const finePayments = await FinePayment.find({
+      memberId: member._id,
       date: {
         $gte: startOfYear,
         $lt: endOfYear,
-      },}).select("date amount");
-      // console.log('finePayments:', finePayments)
+      },
+    }).select("date amount");
+    // console.log('finePayments:', finePayments)
     //getting total membership payments for this year
     const totalMembershipPayments = membershipPayments.reduce(
       (total, payment) => total + payment.amount,
@@ -433,7 +435,7 @@ exports.getMember = async (req, res) => {
     );
     // console.log('totalFinePayments: ', totalFinePayments)
     //calculating membership due for this year
-    const currentMonth = new Date().getMonth() ;
+    const currentMonth = new Date().getMonth();
     if (member.siblingsCount > 0) {
       membershipCharge =
         (300 * member.siblingsCount * 0.3 + 300) * currentMonth;
@@ -455,7 +457,7 @@ exports.getMember = async (req, res) => {
       dependents: member.dependents.map((dependent) => dependent.name),
       fineTotal, // Use the calculated fineTotal
       membershipDue: membershipDue,
-      fineDue:fineTotal-totalFinePayments,
+      fineDue: fineTotal - totalFinePayments,
     });
   } catch (error) {
     console.error("Error fetching member data:", error);
@@ -701,32 +703,36 @@ exports.getFines = async (req, res) => {
               console.error("Error fetching funeral:", err);
               return null;
             });
-        }else{ if (fineType === "funeral-ceremony") {
-          return Funeral.findById(fine.eventId)
-            .select("date member_id")
-            .populate("member_id", "name area")
-            .then((funeral) => {
-              if (!funeral) {
-                console.error(`Funeral not found for eventId: ${fine.eventId}`);
+        } else {
+          if (fineType === "funeral-ceremony") {
+            return Funeral.findById(fine.eventId)
+              .select("date member_id")
+              .populate("member_id", "name area")
+              .then((funeral) => {
+                if (!funeral) {
+                  console.error(
+                    `Funeral not found for eventId: ${fine.eventId}`
+                  );
+                  return null;
+                }
+
+                const date = new Date(funeral.date).toISOString().split("T")[0];
+
+                return {
+                  date,
+                  fineType: `${funeral.member_id?.area} ${funeral.member_id?.name} ගේ සාමාජිකත්වය යටතේ අවමංගල්‍යයට දේහය ගෙන යාම`,
+                  fineAmount,
+                  name: funeral.member_id?.name || "Unknown",
+                  area: funeral.member_id?.area || "Unknown",
+                };
+              })
+              .catch((err) => {
+                console.error("Error fetching funeral:", err);
                 return null;
-              }
-  
-              const date = new Date(funeral.date).toISOString().split("T")[0];
-  
-              return {
-                date,
-                fineType: `${funeral.member_id?.area} ${funeral.member_id?.name} ගේ සාමාජිකත්වය යටතේ අවමංගල්‍යයට දේහය ගෙන යාම`,
-                fineAmount,
-                name: funeral.member_id?.name || "Unknown",
-                area: funeral.member_id?.area || "Unknown",
-              };
-            })
-            .catch((err) => {
-              console.error("Error fetching funeral:", err);
-              return null;
-            });
-        }}
-      } 
+              });
+          }
+        }
+      }
 
       return null;
     });
@@ -1148,6 +1154,29 @@ exports.getMemberIdsForFuneralAttendance = async (req, res) => {
     });
   }
 };
+//get all member ids for meeting attendance chart
+exports.getMembersForMeetingAttendance = async (req, res) => {
+  try {
+    const members = await Member.find({
+      $or: [
+        { deactivated_at: { $exists: false } }, // No deactivatedDate field
+        { deactivated_at: null },
+      ],
+      status: { $nin: ["attendance-free", "free"] },
+    })
+      .select("member_id") // Select only the member_id field
+      .sort("member_id"); // Sort by member_id
+
+    const memberIds = members.map((member) => member.member_id);
+    res.status(200).json({ success: true, memberIds: memberIds });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching members.",
+      error: error.message,
+    });
+  }
+};
 
 // Get all member dues for meeting sign sheet
 exports.getDueForMeetingSign = async (req, res) => {
@@ -1212,7 +1241,8 @@ exports.getDueForMeetingSign = async (req, res) => {
 
     // Calculate total membership dues for each member
     const memberDues = members.map((member) => {
-      const memberShipTotalPaid = membershipPaymentMap.get(member._id.toString()) || 0;
+      const memberShipTotalPaid =
+        membershipPaymentMap.get(member._id.toString()) || 0;
       const membershipDue = currentMonth * 300 - memberShipTotalPaid;
       const totalFines = member.fines?.reduce(
         (sum, fine) => sum + fine.amount,
@@ -1220,7 +1250,8 @@ exports.getDueForMeetingSign = async (req, res) => {
       );
       const fineTotalPaid = finePaymentMap.get(member._id.toString()) || 0;
 
-      const totalDue = membershipDue + member.previousDue + totalFines-fineTotalPaid;
+      const totalDue =
+        membershipDue + member.previousDue + totalFines - fineTotalPaid;
 
       return {
         member_id: member.member_id,

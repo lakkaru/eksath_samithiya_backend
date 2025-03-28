@@ -18,6 +18,7 @@ const {
   getMembershipDeathById,
   getNextId,
   getMemberIdsForFuneralAttendance,
+  getMembersForMeetingAttendance,
   deleteFineById,
 } = require("../controllers/memberController");
 const authMiddleware = require("../middleware/authMiddleware");
@@ -69,6 +70,7 @@ router.get(
 );
 router.get("/getNextId", authMiddleware(["vice-secretary"]), getNextId);
 router.get("/getMemberIdsForFuneralAttendance", authMiddleware(["vice-secretary"]), getMemberIdsForFuneralAttendance);
+router.get("/getMembersForMeetingAttendance", authMiddleware(["vice-secretary"]), getMembersForMeetingAttendance);
 router.post("/deleteFine", authMiddleware(["vice-secretary"]), deleteFineById);
 
 // Route to get member id object by member_id (requires authentication)
