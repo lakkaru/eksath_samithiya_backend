@@ -196,9 +196,9 @@ exports.getMyLoan = async (req, res) => {
       (lastIntPayDateObj.getFullYear() - loanDateObj.getFullYear()) * 12 +
       (lastIntPayDateObj.getMonth() - loanDateObj.getMonth());
     // //adding one month if loan date is exceed
-    // if ((lastIntPayDateObj.getDate() - loanDateObj.getDate())>0) {
-    //   lastPaymentMonths=lastPaymentMonths+1
-    // }
+    if ((lastIntPayDateObj.getDate() - loanDateObj.getDate())>0) {
+      lastPaymentMonths=lastPaymentMonths+1
+    }
     // console.log("lastPaymentMonths :", lastPaymentMonths);
 
     const interestUnpaidMonths = Math.max(totalMonths - lastPaymentMonths, 0);
@@ -772,7 +772,7 @@ exports.getMemberDueById = async (req, res) => {
 
     // Find member by ID
     const member = await Member.findOne({ member_id: member_id }).select(
-      "_id member_id name previousDue fines"
+      "_id member_id name previousDue fines siblingsCount"
     );
     // console.log(member)
     if (!member) {
@@ -810,7 +810,8 @@ exports.getMemberDueById = async (req, res) => {
     );
 
     //calculating membership due for this year
-    const currentMonth = new Date().getMonth() + 1;
+    const currentMonth = new Date().getMonth() ;
+    // console.log(member.siblingsCount)
     if (member.siblingsCount > 0) {
       membershipCharge =
         (300 * member.siblingsCount * 0.3 + 300) * currentMonth;
