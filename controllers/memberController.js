@@ -384,9 +384,10 @@ exports.getMember = async (req, res) => {
     // Find member by ID
     const member = await Member.findOne({ member_id: memberId }).populate(
       "dependents",
-      "name"
+      // "name",
+      // 'relationship'
     );
-
+// console.log('member: ', member)
     if (!member) {
       return res.status(404).json({ error: "Member not found." });
     }
@@ -454,7 +455,7 @@ exports.getMember = async (req, res) => {
       email: member.email,
       previousDue: member.previousDue,
       meetingAbsents: member.meetingAbsents,
-      dependents: member.dependents.map((dependent) => dependent.name),
+      dependents: member.dependents.map((dependent) => dependent),
       fineTotal, // Use the calculated fineTotal
       membershipDue: membershipDue,
       fineDue: fineTotal - totalFinePayments,
