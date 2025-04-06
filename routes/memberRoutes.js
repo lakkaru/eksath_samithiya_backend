@@ -16,6 +16,7 @@ const {
   getActiveMembers,
   getAdminsForFuneral,
   getMembershipDeathById,
+  getMemberAllInfoById,
   getNextId,
   getMemberIdsForFuneralAttendance,
   getMembersForMeetingAttendance,
@@ -67,6 +68,11 @@ router.get(
   "/getMembershipDeathById",
   authMiddleware(["vice-secretary"]),
   getMembershipDeathById
+);
+router.get(
+  "/getMemberAllInfoById",
+  authMiddleware(["vice-secretary"]),
+  getMemberAllInfoById
 );
 router.get("/getNextId", authMiddleware(["vice-secretary"]), getNextId);
 router.get("/getMemberIdsForFuneralAttendance", authMiddleware(["vice-secretary"]), getMemberIdsForFuneralAttendance);
