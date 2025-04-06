@@ -13,10 +13,256 @@ const PenaltyIntPayment = require("../models/LoanPenaltyIntPayment");
 const MembershipPayment = require("../models/MembershipPayment");
 const FinePayment = require("../models/FinePayment");
 const Funeral = require("../models/Funeral");
+const Meeting = require("../models/Meeting");
 
 // Environment variable for JWT secret
 const JWT_SECRET = process.env.JWT_SECRET;
 
+const monthlyMembership2025 = 300;
+
+//getting all info about member and dependents
+async function getMembershipDetails(member_id) {
+  // console.log(member_id)
+  const member = await Member.findOne({ member_id: member_id })
+    .populate("dependents", "name relationship dateOfDeath") // Populate dependents with necessary fields
+    .select(
+      "_id member_id name dateOfDeath dependents area  status siblingsCount previousDue"
+    );
+
+  if (!member) {
+    return;
+  }
+  return member;
+}
+
+//getting membership rate for a member
+async function membershipRateForMember(siblingsCount, monthlyRate) {
+  if (siblingsCount > 0) {
+    return monthlyRate + monthlyRate * 0.3 * siblingsCount;
+  } else {
+    return monthlyRate;
+  }
+}
+
+//get total membership payments of the year
+async function getTotalMembershipPayment(year, _id) {
+  const currentYear = new Date(year).getFullYear();
+  const startOfYear = new Date(currentYear, 0, 1);
+  const endOfYear = new Date(currentYear + 1, 0, 1);
+  console.log(currentYear);
+  const membershipPayments = await MembershipPayment.find({
+    memberId: _id,
+    date: {
+      $gte: startOfYear,
+      $lt: endOfYear,
+    },
+  }).select("date amount");
+
+  // const finePayments = await FinePayment.find({
+  //   memberId: _id,
+  //   date: {
+  //     $gte: startOfYear,
+  //     $lt: endOfYear,
+  //   },
+  // }).select("date amount");
+  // console.log('finePayments:', finePayments)
+  //getting total membership payments for this year
+  const totalMembershipPayments = membershipPayments.reduce(
+    (total, payment) => total + payment.amount,
+    0 // Initial value for the total
+  );
+  return totalMembershipPayments;
+}
+
+//getting all payments by a member
+async function getAllPaymentsByMember(member_Id) {
+  // console.log(member_id)
+  // const member_Id = await Member.findOne({ member_id: member_id }).select(
+  //   "_id"
+  // );
+  const membershipPayments = await MembershipPayment.find({
+    memberId: member_Id, //id object
+  }).select("date amount _id");
+  // Combine and group payments by date
+  const paymentMap = {};
+
+  membershipPayments.forEach((payment) => {
+    const date = new Date(payment.date).toISOString().split("T")[0]; // Normalize date
+    if (!paymentMap[date]) {
+      paymentMap[date] = {
+        date,
+        mem_id: null,
+        memAmount: 0,
+        fine_id: null,
+        fineAmount: 0,
+      };
+    }
+    paymentMap[date].mem_id = payment._id;
+    paymentMap[date].memAmount += payment.amount || 0;
+  });
+
+  // Fetch fine payments
+  const finePayments = await FinePayment.find({
+    memberId: member_Id, //id object
+  }).select("date amount _id");
+  // console.log('member_Id:', member_Id)
+  // console.log('finePayments:', finePayments)
+  finePayments.forEach((payment) => {
+    const date = new Date(payment.date).toISOString().split("T")[0]; // Normalize date
+    if (!paymentMap[date]) {
+      paymentMap[date] = {
+        date,
+        mem_id: null,
+        memAmount: 0,
+        fine_id: null,
+        fineAmount: 0,
+      };
+    }
+    paymentMap[date].fine_id = payment._id;
+    paymentMap[date].fineAmount += payment.amount || 0;
+  });
+
+  // Convert the map to an array and sort by date
+  const allPayments = Object.values(paymentMap).sort(
+    (a, b) => new Date(b.date) - new Date(a.date)
+  );
+
+  //Process and group payments
+  const formattedPayments = allPayments.map((payment) => ({
+    ...payment,
+    date:
+      payment.date !== "Total"
+        ? new Date(payment.date).toISOString().split("T")[0].replace(/-/g, "/")
+        : "Total",
+  }));
+  const grouped = formattedPayments.reduce((acc, payment) => {
+    if (payment.date === "Total") return acc; // Skip the global total row
+    const year = payment.date.split("/")[0]; // Extract the year
+    if (!acc[year]) {
+      acc[year] = {
+        payments: [],
+        totals: { memAmount: 0, fineAmount: 0 },
+      };
+    }
+
+    acc[year].payments.push(payment);
+
+    acc[year].totals.memAmount += payment.memAmount || 0;
+    acc[year].totals.fineAmount += payment.fineAmount || 0;
+
+    return acc;
+  }, {});
+
+  // Add totals to each year's group
+  Object.keys(grouped).forEach((year) => {
+    grouped[year].payments.push({
+      date: "Total",
+      memAmount: grouped[year].totals.memAmount,
+      fineAmount: grouped[year].totals.fineAmount,
+    });
+  });
+  return grouped;
+}
+
+// getting all fine data of a member
+async function getAllFinesOfMember(member_Id) {
+  try {
+    const memberData = await Member.findById(member_Id).select("fines");
+    const memberFines = memberData?.fines || [];
+
+    const finePromises = memberFines.map(async (fine) => {
+      const fineType = fine.eventType;
+      const fineAmount = fine.amount;
+
+      try {
+        let date, fineDetails;
+
+        if (
+          fineType === "funeral" ||
+          fineType === "extraDue" ||
+          fineType === "funeral-ceremony"
+        ) {
+          const funeral = await Funeral.findById(fine.eventId)
+            .select("date member_id")
+            .populate("member_id", "name area");
+
+          if (!funeral) {
+            console.error(`Funeral not found for eventId: ${fine.eventId}`);
+            return null;
+          }
+
+          date = new Date(funeral.date).toISOString().split("T")[0];
+          let fineDescription = "";
+
+          if (fineType === "funeral") {
+            fineDescription = `${funeral.member_id?.area} ${funeral.member_id?.name} ගේ සාමාජිකත්වය යටතේ අවමංගල්‍ය `;
+          } else if (fineType === "extraDue") {
+            fineDescription = `${funeral.member_id?.area} ${funeral.member_id?.name} ගේ සාමාජිකත්වය යටතේ අවමංගල්‍යයට අතිරේක ආධාර `;
+          } else if (fineType === "funeral-ceremony") {
+            fineDescription = `${funeral.member_id?.area} ${funeral.member_id?.name} ගේ සාමාජිකත්වය යටතේ අවමංගල්‍යයට දේහය ගෙන යාම`;
+          }
+
+          fineDetails = {
+            date,
+            fineType: fineDescription,
+            fineAmount,
+            // name: funeral.member_id?.name || "Unknown",
+            // area: funeral.member_id?.area || "Unknown",
+          };
+        } else if (fineType === "meeting") {
+          const meeting = await Meeting.findById(fine.eventId).select("date");
+
+          if (!meeting) {
+            console.error(`Meeting not found for eventId: ${fine.eventId}`);
+            return null;
+          }
+
+          date = new Date(meeting.date).toISOString().split("T")[0];
+
+          fineDetails = {
+            date,
+            fineType: `දින මහා සභාව වන විට මහා සභා වාර තුනක් නොපැමිණීම. `,
+            fineAmount,
+          };
+        } else {
+          console.error(`Unknown fine type: ${fineType}`);
+          return null;
+        }
+        return fineDetails;
+      } catch (err) {
+        console.error("Error fetching fine data:", err);
+        return null;
+      }
+    });
+
+    const memberFineData = (await Promise.all(finePromises)).filter(Boolean);
+
+    // Group fines by year
+    const groupedFines = memberFineData.reduce((acc, fine) => {
+      const year = fine.date.split("-")[0]; // Extract the year
+      if (!acc[year]) {
+        acc[year] = { fines: [], total: { fineAmount: 0 } };
+      }
+      acc[year].fines.push(fine);
+      acc[year].total.fineAmount += fine.fineAmount;
+      return acc;
+    }, {});
+
+    // Add total to each year's group
+    Object.keys(groupedFines).forEach((year) => {
+      groupedFines[year].fines.push({
+        date: "",
+        fineAmount: groupedFines[year].total.fineAmount,
+        fineType: "Total",
+      });
+    });
+
+    return groupedFines;
+  } catch (error) {
+    console.error("Error getting all fines:", error);
+    return {}; // Return an empty object in case of an error
+  }
+}
 // Get profile information for a member
 exports.getProfileInfo = async (req, res) => {
   // console.log("edit profile");
@@ -196,8 +442,8 @@ exports.getMyLoan = async (req, res) => {
       (lastIntPayDateObj.getFullYear() - loanDateObj.getFullYear()) * 12 +
       (lastIntPayDateObj.getMonth() - loanDateObj.getMonth());
     // //adding one month if loan date is exceed
-    if ((lastIntPayDateObj.getDate() - loanDateObj.getDate())>0) {
-      lastPaymentMonths=lastPaymentMonths+1
+    if (lastIntPayDateObj.getDate() - loanDateObj.getDate() > 0) {
+      lastPaymentMonths = lastPaymentMonths + 1;
     }
     // console.log("lastPaymentMonths :", lastPaymentMonths);
 
@@ -383,11 +629,11 @@ exports.getMember = async (req, res) => {
 
     // Find member by ID
     const member = await Member.findOne({ member_id: memberId }).populate(
-      "dependents",
+      "dependents"
       // "name",
       // 'relationship'
     );
-// console.log('member: ', member)
+    // console.log('member: ', member)
     if (!member) {
       return res.status(404).json({ error: "Member not found." });
     }
@@ -731,6 +977,28 @@ exports.getFines = async (req, res) => {
                 console.error("Error fetching funeral:", err);
                 return null;
               });
+          } else {
+            if (fineType === "meeting") {
+              return Meeting.findById(fine.eventId)
+                .select("date")
+                .then((meeting) => {
+                  const date = new Date(meeting.date)
+                    .toISOString()
+                    .split("T")[0];
+
+                  return {
+                    date,
+                    fineType: ` දින මහා සභාව වන විට මහා සභා වාර තුනක් නොපැමිණීම. `,
+                    fineAmount,
+                    // name: funeral.member_id?.name || "Unknown",
+                    // area: funeral.member_id?.area || "Unknown",
+                  };
+                })
+                .catch((err) => {
+                  console.error("Error fetching funeral:", err);
+                  return null;
+                });
+            }
           }
         }
       }
@@ -811,7 +1079,7 @@ exports.getMemberDueById = async (req, res) => {
     );
 
     //calculating membership due for this year
-    const currentMonth = new Date().getMonth() ;
+    const currentMonth = new Date().getMonth();
     // console.log(member.siblingsCount)
     if (member.siblingsCount > 0) {
       membershipCharge =
@@ -1102,6 +1370,56 @@ exports.getMembershipDeathById = async (req, res) => {
     return res.status(200).json({
       message: "No deceased member or dependents found",
       data: [],
+    });
+  } catch (error) {
+    console.error("Error retrieving member and dependents:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+//get membership all details for member info view
+exports.getMemberAllInfoById = async (req, res) => {
+  try {
+    const { member_id } = req.query;
+    // console.log(member_id);
+    const member = await getMembershipDetails(member_id);
+    //  console.log('member:', member)
+    const member_Id = member._id;
+    // console.log('member_Id:', member_Id)
+    const membershipRate = await membershipRateForMember(
+      member.siblingsCount,
+      monthlyMembership2025
+    );
+    // console.log('membershipRate:', membershipRate)
+
+    const totalMembershipPayment = await getTotalMembershipPayment(
+      "2025",
+      member_Id
+    );
+    const currentMembershipDue =
+      new Date().getMonth() * membershipRate - totalMembershipPayment;
+    // console.log('currentMembershipDue:', currentMembershipDue)
+    // const membershipDue=membershipRateForMember
+    // console.log('totalMembershipPayment:', totalMembershipPayment)
+    const groupedPayments = await getAllPaymentsByMember(member_Id);
+    // console.log("groupedPayments:", groupedPayments);
+    const finesTotalPayments=groupedPayments["2025"]?.totals.fineAmount||0
+    // console.log("finesTotalPayments:", finesTotalPayments);
+    const fines = await getAllFinesOfMember(member_Id);
+    // console.log("Member fines:", fines);
+    const finesTotal = fines["2025"]?.total.fineAmount||0;
+    // console.log("finesTotal:", finesTotal);
+    const totalDue = member.previousDue+finesTotal-finesTotalPayments+currentMembershipDue
+    // console.log("totalDue:", totalDue);
+    return res.status(200).json({
+      message: "Member information retrieved successfully",
+      memberData: {
+        memberDetails: member,
+        membershipRate,
+        currentMembershipDue,
+        fines,
+        groupedPayments,
+        totalDue,
+      },
     });
   } catch (error) {
     console.error("Error retrieving member and dependents:", error);
