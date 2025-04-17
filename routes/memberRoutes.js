@@ -6,6 +6,7 @@ const {
   updateProfileInfo,
   getMemberHasLoanById,
   getMyLoan,
+  // getMemberLoanInfo,
   getMember,
   getPayments,
   getFines,
@@ -33,6 +34,7 @@ router.put("/profile", authMiddleware(), updateProfileInfo);
 // Route to get  member info (requires authentication)
 router.get("/hasLoan", authMiddleware(), getMemberHasLoanById);
 router.get("/myLoan", authMiddleware(), getMyLoan);
+// router.get("/memberLoan", authMiddleware(), getMemberLoanInfo);
 router.get("/getMemberById/:memberId", authMiddleware(), getMemberById);
 router.get("/info", authMiddleware(), getMember);
 router.get("/payments", authMiddleware(), getPayments);
@@ -71,7 +73,7 @@ router.get(
 );
 router.get(
   "/getMemberAllInfoById",
-  authMiddleware(["vice-secretary"]),
+  authMiddleware(["vice-secretary", "treasurer", "loan-treasurer"]),
   getMemberAllInfoById
 );
 router.get("/getNextId", authMiddleware(["vice-secretary"]), getNextId);

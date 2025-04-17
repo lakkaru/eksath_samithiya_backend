@@ -263,6 +263,198 @@ async function getAllFinesOfMember(member_Id) {
     return {}; // Return an empty object in case of an error
   }
 }
+//calculate loan interest
+async function InterestCalculation(
+  loanDate,
+  remainingAmount,
+  lastIntPaymentDate,
+  paymentDate
+) {
+  // console.log("Loan Date: :", loanDate);
+  // console.log("remainingAmount: :", remainingAmount);
+  // console.log("lastIntPaymentDate: :", lastIntPaymentDate);
+  // console.log("paymentDate: :", paymentDate);
+  if (!loanDate || !remainingAmount || !paymentDate)
+    return { int: 0, penInt: 0 };
+  // console.log("paymentDate: ", paymentDate)
+  const loanDateObj = new Date(loanDate);
+  const lastIntPayDateObj = new Date(lastIntPaymentDate || loanDate);
+  const currentDate = new Date(paymentDate);
+  // console.log("currentDate :", currentDate)
+  const monthlyInterestRate = 0.03;
+  const loanPeriodMonths = 10;
+
+  let totalMonths =
+    (currentDate.getFullYear() - loanDateObj.getFullYear()) * 12 +
+    (currentDate.getMonth() - loanDateObj.getMonth());
+  //adding one month if loan date is exceed
+  if (currentDate.getDate() - loanDateObj.getDate() > 0) {
+    totalMonths = totalMonths + 1;
+  }
+  //getting installment
+  let loanInstallment = 0;
+  // console.log("totalMonths:", totalMonths);
+  // console.log("remainingAmount:", remainingAmount);
+  if (totalMonths <= 10) {
+    loanInstallment = totalMonths * 1000 - (10000 - remainingAmount);
+    // console.log(loanInstallment)
+  } else {
+    loanInstallment = remainingAmount;
+    // console.log(loanInstallment)
+  }
+
+  // console.log("totalMonths :", totalMonths)
+  // console.log('lastIntPayDateObj.getFullYear():',lastIntPayDateObj.getFullYear())
+  // console.log('lastIntPayDateObj.getMonth():',lastIntPayDateObj.getMonth())
+  // console.log('loanDateObj.getMonth():',loanDateObj.getMonth())
+  let lastPaymentMonths =
+    (lastIntPayDateObj.getFullYear() - loanDateObj.getFullYear()) * 12 +
+    (lastIntPayDateObj.getMonth() - loanDateObj.getMonth());
+  // //adding one month if loan date is exceed
+  if (lastIntPayDateObj.getDate() - loanDateObj.getDate() > 0) {
+    lastPaymentMonths = lastPaymentMonths + 1;
+  }
+  // console.log("lastPaymentMonths :", lastPaymentMonths)
+
+  const interestUnpaidMonths = Math.max(totalMonths - lastPaymentMonths, 0);
+  // console.log("interestUnpaidMonths: ", interestUnpaidMonths)
+  let penaltyMonths = 0;
+  //checking loan is over due
+  if (totalMonths > 10) {
+    //penalty months
+    const dueMonths = totalMonths - loanPeriodMonths;
+    //checking if int payment has done before due
+    if (interestUnpaidMonths > dueMonths) {
+      penaltyMonths = dueMonths;
+    } else {
+      penaltyMonths = interestUnpaidMonths;
+    }
+  }
+  // console.log('penaltyMonths: ', penaltyMonths)
+  const interest = remainingAmount * interestUnpaidMonths * monthlyInterestRate;
+  const penaltyInterest = remainingAmount * penaltyMonths * monthlyInterestRate;
+  // console.log("interest: :", interest);
+  // console.log("penaltyInterest: :", penaltyInterest);
+  return {
+    int: Math.round(interest),
+    penInt: Math.round(penaltyInterest),
+    installment: Math.round(loanInstallment + interest + penaltyInterest),
+  };
+}
+
+//getting loan info of the member
+async function memberLoanInfo(member_Id) {
+  // console.log('member_Id:', member_Id)
+  const loan = await Loan.findOne({
+    memberId: member_Id,
+    loanRemainingAmount: { $gt: 0 },
+  })
+    .populate({
+      path: "memberId",
+      select: "member_id name mobile",
+    })
+    .populate({
+      path: "guarantor1Id",
+      select: "member_id name mobile",
+    })
+    .populate({
+      path: "guarantor2Id",
+      select: "member_id name mobile",
+    });
+  // console.log("loan:", loan);
+  const asGuarantor = await Loan.find({
+    loanRemainingAmount: { $gt: 0 },
+    $or: [
+      { guarantor1Id: member_Id }, // replace with actual member ObjectId
+      { guarantor2Id: member_Id },
+    ],
+  })
+    .select("_id memberId loanNumber")
+    .populate({ path: "memberId", select: "name" });
+  // console.log("asGuarantor:", asGuarantor);
+
+  let principlePayments = [];
+  let interestPayments = [];
+  let penaltyIntPayments = [];
+  let lastIntPaymentDate = "";
+  let groupedPayments = [];
+  let calculatedInterest = {};
+  if (loan) {
+    principlePayments = await LoanPrinciplePayment.find({
+      loanId: loan?._id,
+    }).select("date amount");
+    interestPayments = await LoanInterestPayment.find({
+      loanId: loan?._id,
+    }).select("date amount");
+    penaltyIntPayments = await PenaltyIntPayment.find({
+      loanId: loan?._id,
+    }).select("date amount");
+    lastIntPaymentDate = await LoanInterestPayment.findOne({
+      loanId: loan?._id,
+    })
+      .sort({ date: -1 })
+      .select("date");
+
+    // Helper function to group payments by date
+    const groupByDate = (payments) => {
+      return payments.reduce((acc, payment) => {
+        if (payment.date) {
+          const date = new Date(payment.date).toISOString().split("T")[0]; // Format date as YYYY-MM-DD
+          if (!acc[date]) {
+            acc[date] = [];
+          }
+          acc[date].push(payment);
+        }
+        return acc;
+      }, {});
+    };
+
+    // Group payments by date
+    const groupedPrinciplePayments = groupByDate(principlePayments);
+    const groupedInterestPayments = groupByDate(interestPayments);
+    const groupedPenaltyIntPayments = groupByDate(penaltyIntPayments);
+    // console.log('groupedPenaltyIntPayments: ', groupedPenaltyIntPayments)
+
+    // Combine grouped payments into an array of objects
+    const allDates = new Set([
+      ...Object.keys(groupedPrinciplePayments),
+      ...Object.keys(groupedInterestPayments),
+      ...Object.keys(groupedPenaltyIntPayments),
+    ]);
+    groupedPayments = Array.from(allDates).map((date) => ({
+      date,
+      principleAmount:
+        groupedPrinciplePayments[date]?.reduce(
+          (sum, payment) => sum + payment.amount,
+          0
+        ) || 0,
+      interestAmount:
+        groupedInterestPayments[date]?.reduce(
+          (sum, payment) => sum + payment.amount,
+          0
+        ) || 0,
+      penaltyInterestAmount:
+        groupedPenaltyIntPayments[date]?.reduce(
+          (sum, payment) => sum + payment.amount,
+          0
+        ) || 0,
+    }));
+    // console.log("groupedPayments: ", groupedPayments);
+    // console.log("loan date for interest: ", loan.loanDate);
+    calculatedInterest = await InterestCalculation(
+      loan?.loanDate,
+      loan?.loanRemainingAmount,
+      lastIntPaymentDate?.date,
+      new Date()
+    );
+
+    // console.log("loan: ", loan);
+    // console.log("groupedPayments: ", groupedPayments);
+    // console.log("calculatedInterest: ", calculatedInterest);
+  }
+  return { loan, groupedPayments, calculatedInterest, asGuarantor };
+}
+
 // Get profile information for a member
 exports.getProfileInfo = async (req, res) => {
   // console.log("edit profile");
@@ -393,6 +585,13 @@ exports.getMemberHasLoanById = async (req, res) => {
   }
 };
 
+//get member loan
+// exports.getMemberLoanInfo=async (req, res) => {
+//   console.log(req.query)
+//   const member_Id=req.query.member_id
+
+//   // const loanInfo=await memberLoanInfo(member_Id)
+// }
 //get my loan
 exports.getMyLoan = async (req, res) => {
   // console.log("my Loan");
@@ -1402,14 +1601,26 @@ exports.getMemberAllInfoById = async (req, res) => {
     // console.log('totalMembershipPayment:', totalMembershipPayment)
     const groupedPayments = await getAllPaymentsByMember(member_Id);
     // console.log("groupedPayments:", groupedPayments);
-    const finesTotalPayments=groupedPayments["2025"]?.totals.fineAmount||0
+    const finesTotalPayments = groupedPayments["2025"]?.totals.fineAmount || 0;
     // console.log("finesTotalPayments:", finesTotalPayments);
     const fines = await getAllFinesOfMember(member_Id);
     // console.log("Member fines:", fines);
-    const finesTotal = fines["2025"]?.total.fineAmount||0;
+    const finesTotal = fines["2025"]?.total.fineAmount || 0;
     // console.log("finesTotal:", finesTotal);
-    const totalDue = member.previousDue+finesTotal-finesTotalPayments+currentMembershipDue
-    // console.log("totalDue:", totalDue);
+    const loanInfo = await memberLoanInfo(member_Id);
+    // console.log("Loan Info:", loanInfo);
+    const totalDue = loanInfo?.calculatedInterest?.installment
+      ? member.previousDue +
+        finesTotal -
+        finesTotalPayments +
+        currentMembershipDue +
+        loanInfo.calculatedInterest.installment
+      : member.previousDue +
+        finesTotal -
+        finesTotalPayments +
+        currentMembershipDue;
+    console.log("totalDue:", totalDue);
+
     return res.status(200).json({
       message: "Member information retrieved successfully",
       memberData: {
@@ -1418,11 +1629,12 @@ exports.getMemberAllInfoById = async (req, res) => {
         currentMembershipDue,
         fines,
         groupedPayments,
+        loanInfo,
         totalDue,
       },
     });
   } catch (error) {
-    console.error("Error retrieving member and dependents:", error);
+    console.error("Error retrieving member full details:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
