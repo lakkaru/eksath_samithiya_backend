@@ -264,7 +264,7 @@ async function getAllFinesOfMember(member_Id) {
   }
 }
 //calculate loan interest
-async function InterestCalculation(
+async function interestCalculation(
   loanDate,
   remainingAmount,
   lastIntPaymentDate,
@@ -441,7 +441,7 @@ async function memberLoanInfo(member_Id) {
     }));
     // console.log("groupedPayments: ", groupedPayments);
     // console.log("loan date for interest: ", loan.loanDate);
-    calculatedInterest = await InterestCalculation(
+    calculatedInterest = await interestCalculation(
       loan?.loanDate,
       loan?.loanRemainingAmount,
       lastIntPaymentDate?.date,
@@ -455,6 +455,28 @@ async function memberLoanInfo(member_Id) {
   return { loan, groupedPayments, calculatedInterest, asGuarantor };
 }
 
+//getting logged member id
+async function loggedMemberId(req) {
+  try {
+    // Step 1: Extract the token from the request headers
+    const token = req.headers.authorization?.split(" ")[1]; // Extract "Bearer <token>"
+    // Step 2: Verify and decode the token
+    let decoded;
+
+    try {
+      decoded = jwt.verify(token, JWT_SECRET); // Decode the token using the secret
+      // console.log('decoded.member_id: ', decoded.member_id)
+      const member = await Member.findOne({ member_id: decoded.member_id });
+      return member
+    } catch (error) {
+      return ({ error: "Invalid or expired token" });
+    }
+    const member = await Member.findOne({ member_id: decoded.member_id });
+    return member
+  } catch (error) {
+    return ({ error: "Authorization token is missing" });
+  }
+}
 // Get profile information for a member
 exports.getProfileInfo = async (req, res) => {
   // console.log("edit profile");
@@ -596,99 +618,12 @@ exports.getMemberHasLoanById = async (req, res) => {
 exports.getMyLoan = async (req, res) => {
   // console.log("my Loan");
   //calculating interest for loan according to payment date
-  const calculateInterest = (
-    loanDate,
-    remainingAmount,
-    lastIntPaymentDate,
-    paymentDate
-  ) => {
-    if (!loanDate || !remainingAmount || !paymentDate)
-      return { int: 0, penInt: 0 };
-    // console.log("paymentDate: ", paymentDate)
-    // console.log("lastIntPaymentDate: ", lastIntPaymentDate)
-    // console.log("loanDate: ", loanDate)
-    const loanDateObj = new Date(loanDate);
-    const lastIntPayDateObj = new Date(lastIntPaymentDate);
-    const currentDate = new Date();
-    // console.log("currentDate :", currentDate)
-    // console.log("lastIntPayDateObj :", lastIntPayDateObj)
-    // console.log("loanDateObj :", loanDateObj)
-    const monthlyInterestRate = 0.03;
-    const loanPeriodMonths = 10;
 
-    let totalMonths =
-      (currentDate.getFullYear() - loanDateObj.getFullYear()) * 12 +
-      (currentDate.getMonth() - loanDateObj.getMonth());
-    //adding one month if loan date is exceed
-    if (currentDate.getDate() - loanDateObj.getDate() > 0) {
-      totalMonths = totalMonths + 1;
-    }
-    //getting installment
-    let loanInstallment = 0;
-    // console.log('totalMonths:', totalMonths)
-    // console.log('remainingAmount:', remainingAmount)
-    if (totalMonths <= 10) {
-      loanInstallment = totalMonths * 1000 - (10000 - remainingAmount);
-      // console.log(loanInstallment)
-    } else {
-      loanInstallment = remainingAmount;
-      // console.log(loanInstallment)
-    }
-
-    // console.log("totalMonths :", totalMonths)
-    // console.log("lastIntPayDateObj :", lastIntPayDateObj);
-    let lastPaymentMonths =
-      (lastIntPayDateObj.getFullYear() - loanDateObj.getFullYear()) * 12 +
-      (lastIntPayDateObj.getMonth() - loanDateObj.getMonth());
-    // //adding one month if loan date is exceed
-    if (lastIntPayDateObj.getDate() - loanDateObj.getDate() > 0) {
-      lastPaymentMonths = lastPaymentMonths + 1;
-    }
-    // console.log("lastPaymentMonths :", lastPaymentMonths);
-
-    const interestUnpaidMonths = Math.max(totalMonths - lastPaymentMonths, 0);
-    // console.log("interestUnpaidMonths: ", interestUnpaidMonths)
-    let penaltyMonths = 0;
-    //checking loan is over due
-    if (totalMonths > 10) {
-      //penalty months
-      const dueMonths = totalMonths - loanPeriodMonths;
-      //checking if int payment has done before due
-      if (interestUnpaidMonths > dueMonths) {
-        penaltyMonths = dueMonths;
-      } else {
-        penaltyMonths = interestUnpaidMonths;
-      }
-    }
-    // console.log('penaltyMonths: ', penaltyMonths)
-    const interest =
-      remainingAmount * interestUnpaidMonths * monthlyInterestRate;
-    // console.log("interest: ", interest);
-    const penaltyInterest =
-      remainingAmount * penaltyMonths * monthlyInterestRate;
-    return {
-      int: Math.round(interest),
-      penInt: Math.round(penaltyInterest),
-      installment: Math.round(loanInstallment + interest + penaltyInterest),
-    };
-  };
   try {
     // Step 1: Extract the token from the request headers
-    const token = req.headers.authorization?.split(" ")[1]; // Extract "Bearer <token>"
-    if (!token) {
-      return res.status(401).json({ error: "Authorization token is missing" });
-    }
-
-    // Step 2: Verify and decode the token
-    let decoded;
-
-    try {
-      decoded = jwt.verify(token, JWT_SECRET); // Decode the token using the secret
-      // console.log('decoded.member_id: ', decoded.member_id)
-    } catch (error) {
-      return res.status(401).json({ error: "Invalid or expired token" });
-    }
-    const member = await Member.findOne({ member_id: decoded.member_id });
+    // 
+    const member=await loggedMemberId(req)
+    // console.log('member: ', member)
     const loan = await Loan.findOne({
       memberId: member._id,
       loanRemainingAmount: { $gt: 0 },
@@ -781,7 +716,7 @@ exports.getMyLoan = async (req, res) => {
       // console.log("groupedPayments: ", groupedPayments);
       // console.log("loan: ", loan);
 
-      const calculatedInterest = calculateInterest(
+      const calculatedInterest = await interestCalculation(
         loan?.loanDate,
         loan?.loanRemainingAmount,
         lastIntPaymentDate?.date,
