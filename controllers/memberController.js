@@ -467,14 +467,14 @@ async function loggedMemberId(req) {
       decoded = jwt.verify(token, JWT_SECRET); // Decode the token using the secret
       // console.log('decoded.member_id: ', decoded.member_id)
       const member = await Member.findOne({ member_id: decoded.member_id });
-      return member
+      return member;
     } catch (error) {
-      return ({ error: "Invalid or expired token" });
+      return { error: "Invalid or expired token" };
     }
     const member = await Member.findOne({ member_id: decoded.member_id });
-    return member
+    return member;
   } catch (error) {
-    return ({ error: "Authorization token is missing" });
+    return { error: "Authorization token is missing" };
   }
 }
 // Get profile information for a member
@@ -621,8 +621,8 @@ exports.getMyLoan = async (req, res) => {
 
   try {
     // Step 1: Extract the token from the request headers
-    // 
-    const member=await loggedMemberId(req)
+    //
+    const member = await loggedMemberId(req);
     // console.log('member: ', member)
     const loan = await Loan.findOne({
       memberId: member._id,
@@ -1188,7 +1188,20 @@ exports.getMemberDueById = async (req, res) => {
       0
     );
     //getting total of fins and previous dues
-    const totalDue = fineTotal + member.previousDue;
+    const due = fineTotal + member.previousDue;
+    // console.log('due ', due)
+    const finePayments = await FinePayment.find({
+      memberId: member._id,
+      date: { $gt: new Date("2024-12-31T23:59:59.999Z") },
+    });
+    // console.log('finePayments ', finePayments)
+    const totalFinePayments = finePayments?.reduce(
+      (sum, payment) => sum + payment.amount,
+      0
+    );
+
+    // console.log("totalFinePayments:", totalFinePayments);
+    const totalDue=due-totalFinePayments
     // //getting all membership payments done by member
     // const allMembershipPayments = await MembershipPayment.find({
     //   memberId: member._id,
