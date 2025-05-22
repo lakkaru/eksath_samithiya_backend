@@ -3,6 +3,8 @@ const Member = require("../models/Member");
 
 const FINE_AMOUNT = 500;
 
+
+
 async function getActiveMemberIds() {
   const members = await Member.find({
     $or: [
@@ -80,6 +82,42 @@ async function applyFines(updatedMembers, meetingId) {
     }
   }
 }
+
+async function absents() {
+  const absents=Meeting.select('date absents')
+}
+
+//getting all meeting attendance 
+exports.getAttendance = async (req, res) => {
+  try {
+    const memberIds = await getActiveMemberIds(); // Array of ObjectIds or strings
+    const meetings = await Meeting.find()
+      .select("date absents")
+      .sort({ date: 1 });
+
+    const attendanceRecords = meetings.map(meeting => {
+      const attendance = memberIds.map(id => ({
+        memberId: id,
+        present: !meeting.absents.includes(id.toString()), // Assuming absents is array of strings
+      }));
+
+      return {
+        date: meeting.date,
+        attendance,
+      };
+    });
+
+    res.status(200).json({
+      message: "Attendance data fetched successfully",
+      attendanceRecords,
+      memberIds,
+    });
+  } catch (error) {
+    console.error("Error fetching attendance:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 
 exports.saveAttendance = async (req, res) => {
   try {
