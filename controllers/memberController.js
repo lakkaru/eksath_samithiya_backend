@@ -827,6 +827,46 @@ exports.getMember = async (req, res) => {
     // console.log("membershipPayments:", membershipPayments);
     // Respond with member details
     // console.log('member:', member)
+
+    // Getting guarantor details (guarantor1 or guarantor2) with remaining loan amount
+    const asGuarantor = await Loan.find({
+      $or: [{ guarantor1Id: member._id }, { guarantor2Id: member._id }],
+      loanRemainingAmount: { $ne: 0 },
+    }).select("_id");
+
+    // console.log("asGuarantor:", asGuarantor);
+
+    const loanDetailsAsGuarantor = await Promise.all(
+      asGuarantor.map(async (loan) => {
+        // Get the last interest payment
+        const lastIntPayment = await LoanInterestPayment.findOne({
+          loanId: loan._id,
+        })
+          .sort({ date: -1 }) // Sort by date descending
+          .select("date");
+
+        // Get the loan document to access remaining amount, date, etc.
+        const fullLoan = await Loan.findById(loan._id).select(
+          "memberId loanDate loanRemainingAmount"
+        );
+
+        // Get the member details
+        const loanMember = await Member.findById(fullLoan.memberId).select(
+          "member_id name"
+        );
+
+        return {
+          loanMember: loanMember,
+          loanRemainingAmount: fullLoan.loanRemainingAmount,
+          loanDate: fullLoan.loanDate,
+          // loanId: loan._id,
+          lastIntPaymentDate: lastIntPayment?.date || null,
+        };
+      })
+    );
+
+    console.log("loanDetailsAsGuarantor:", loanDetailsAsGuarantor);
+
     res.status(200).json({
       area: member.area,
       address: member.address,
@@ -839,6 +879,7 @@ exports.getMember = async (req, res) => {
       fineTotal, // Use the calculated fineTotal
       membershipDue: membershipDue,
       fineDue: fineTotal - totalFinePayments,
+      loanDetailsAsGuarantor,
     });
   } catch (error) {
     console.error("Error fetching member data:", error);
@@ -1201,7 +1242,7 @@ exports.getMemberDueById = async (req, res) => {
     );
 
     // console.log("totalFinePayments:", totalFinePayments);
-    const totalDue=due-totalFinePayments
+    const totalDue = due - totalFinePayments;
     // //getting all membership payments done by member
     // const allMembershipPayments = await MembershipPayment.find({
     //   memberId: member._id,
