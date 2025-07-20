@@ -2008,3 +2008,105 @@ exports.searchMembersByArea = async (req, res) => {
     });
   }
 };
+
+// Search members by name
+exports.searchMembersByName = async (req, res) => {
+  try {
+    const { name } = req.query;
+
+    if (!name) {
+      return res.status(400).json({
+        error: "Name parameter is required"
+      });
+    }
+
+    // Use aggregation to search both member names and dependent names
+    const members = await Member.aggregate([
+      // Match active members only
+      {
+        $match: {
+          $or: [
+            { deactivated_at: { $exists: false } },
+            { deactivated_at: null },
+          ]
+        }
+      },
+      // Lookup dependents
+      {
+        $lookup: {
+          from: "dependents", // Collection name in MongoDB
+          localField: "dependents",
+          foreignField: "_id",
+          as: "dependents"
+        }
+      },
+      // Match members whose name OR any dependent's name matches
+      {
+        $match: {
+          $or: [
+            { name: { $regex: name, $options: 'i' } }, // Member name matches
+            { "dependents.name": { $regex: name, $options: 'i' } } // Any dependent name matches
+          ]
+        }
+      },
+      // Project the fields we need
+      {
+        $project: {
+          member_id: 1,
+          name: 1,
+          area: 1,
+          mobile: 1,
+          whatsApp: 1,
+          address: 1,
+          status: 1,
+          joined_date: 1,
+          dependents: {
+            name: 1,
+            relationship: 1,
+            dateOfDeath: 1
+          }
+        }
+      },
+      // Sort by member_id
+      {
+        $sort: { member_id: 1 }
+      }
+    ]);
+
+    // Add match information
+    const membersWithMatchInfo = members.map(member => {
+      // Check if member name matches
+      const memberNameMatches = member.name.toLowerCase().includes(name.toLowerCase());
+      
+      // Check which dependents match
+      const matchingDependents = member.dependents.filter(dep => 
+        dep.name.toLowerCase().includes(name.toLowerCase())
+      );
+      
+      // Add match information
+      member.matchInfo = {
+        memberNameMatches,
+        matchingDependents: matchingDependents.map(dep => ({
+          name: dep.name,
+          relationship: dep.relationship
+        }))
+      };
+      
+      return member;
+    });
+
+    res.status(200).json({
+      success: true,
+      searchTerm: name,
+      count: membersWithMatchInfo.length,
+      members: membersWithMatchInfo,
+    });
+
+  } catch (error) {
+    console.error("Error searching members by name:", error);
+    res.status(500).json({
+      error: "An error occurred while searching members",
+      details: error.message,
+    });
+  }
+};

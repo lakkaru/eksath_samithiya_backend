@@ -25,6 +25,7 @@ const {
   deleteFineById,
   createMember,
   searchMembersByArea,
+  searchMembersByName,
 } = require("../controllers/memberController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -100,4 +101,6 @@ router.get("/blacklist", authMiddleware(["loan-treasurer"]), blacklistDueLoanMem
 router.post("/create", authMiddleware(["vice-secretary"]), createMember);
 //search members by area
 router.get("/searchByArea", authMiddleware(["vice-secretary"]), searchMembersByArea);
+//search members by name
+router.get("/searchByName", authMiddleware(["vice-secretary"]), searchMembersByName);
 module.exports = router;
