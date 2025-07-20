@@ -23,6 +23,7 @@ const {
   getMemberIdsForFuneralAttendance,
   getMembersForMeetingAttendance,
   deleteFineById,
+  createMember,
 } = require("../controllers/memberController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -95,5 +96,5 @@ router.get("/blacklist", authMiddleware(["loan-treasurer"]), blacklistDueLoanMem
 // get-admin-for-
 
 //create member
-// router.post("/create", memberController.createMember);
+router.post("/create", authMiddleware(["vice-secretary"]), createMember);
 module.exports = router;

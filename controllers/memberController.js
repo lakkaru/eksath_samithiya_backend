@@ -1862,3 +1862,111 @@ exports.blacklistDueLoanMembers = async (req, res) => {
     // );
   };
 };
+
+// Create a new member
+exports.createMember = async (req, res) => {
+  try {
+    const { 
+      member_id, 
+      name, 
+      area, 
+      phone, 
+      mobile, 
+      whatsApp, 
+      address, 
+      email, 
+      nic, 
+      birthday,
+      siblingsCount,
+      status 
+    } = req.body;
+
+    // Validate required fields
+    if (!member_id || !name) {
+      return res.status(400).json({ 
+        error: "Member ID and Name are required fields" 
+      });
+    }
+
+    // Check if member ID already exists
+    const existingMember = await Member.findOne({ member_id });
+    if (existingMember) {
+      return res.status(400).json({ 
+        error: "Member ID already exists" 
+      });
+    }
+
+    // Check if email already exists (if provided)
+    if (email) {
+      const existingEmail = await Member.findOne({ email });
+      if (existingEmail) {
+        return res.status(400).json({ 
+          error: "Email already exists" 
+        });
+      }
+    }
+
+    // Check if NIC already exists (if provided)
+    if (nic) {
+      const existingNIC = await Member.findOne({ nic });
+      if (existingNIC) {
+        return res.status(400).json({ 
+          error: "NIC already exists" 
+        });
+      }
+    }
+
+    // Create new member
+    const birthYear = birthday ? new Date(birthday).getFullYear().toString() : member_id.toString();
+    
+    const newMember = new Member({
+      member_id,
+      name: name.trim(),
+      area: area?.trim(),
+      phone,
+      mobile,
+      whatsApp,
+      address: address?.trim(),
+      email: email?.toLowerCase(),
+      nic,
+      birthday: birthday ? new Date(birthday) : undefined,
+      siblingsCount: siblingsCount || 0,
+      status: status || "regular",
+      roles: ["member"], // Default role
+      previousDue: 0, // Default previous due
+      meetingAbsents: 0, // Default meeting absents
+      fines: [], // Default empty fines array
+      password: birthYear, // Set password to birth year if available, otherwise member_id
+    });
+
+    const savedMember = await newMember.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Member created successfully",
+      member: {
+        member_id: savedMember.member_id,
+        name: savedMember.name,
+        area: savedMember.area,
+        status: savedMember.status,
+        joined_date: savedMember.joined_date,
+      },
+    });
+
+  } catch (error) {
+    console.error("Error creating member:", error);
+    
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      const duplicateField = Object.keys(error.keyPattern)[0];
+      return res.status(400).json({ 
+        error: `${duplicateField} already exists` 
+      });
+    }
+
+    res.status(500).json({
+      error: "An error occurred while creating the member",
+      details: error.message,
+    });
+  }
+};
