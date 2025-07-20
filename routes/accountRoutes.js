@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { createReceipts, getReceiptsByDate, deleteReceipt } = require("../controllers/accountController");
+const { addExpense, getExpenses, getExpenseSummary } = require("../controllers/expenseController");
 const authMiddleware = require("../middleware/authMiddleware");
 
 // Get receipts by date
@@ -11,6 +12,16 @@ router.post("/receipts", authMiddleware(['treasurer']), createReceipts);
 
 // Delete receipt
 router.delete("/receipts/:id/:memberId/:finePayment/:memPayment", authMiddleware(['treasurer']), deleteReceipt);
+
+// Expense routes
+// Add a new expense
+router.post("/expense", authMiddleware(["treasurer"]), addExpense);
+
+// Get expenses with pagination and filtering
+router.get("/expenses", authMiddleware(["treasurer"]), getExpenses);
+
+// Get expense summary by category
+router.get("/expense-summary", authMiddleware(["treasurer"]), getExpenseSummary);
 
 //get all info about loans of member for new loan
 // router.get(
