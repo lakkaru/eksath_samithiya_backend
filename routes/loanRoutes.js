@@ -21,6 +21,7 @@ router.post("/create", authMiddleware(["loan-treasurer"]), createLoan);
 //get all active loans
 router.get("/active-loans", authMiddleware(["loan-treasurer"]), getActiveLoans);
 
+
 //get loan of a member
 router.get(
   "/member/:memberId",

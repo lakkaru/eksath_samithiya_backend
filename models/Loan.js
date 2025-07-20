@@ -36,6 +36,11 @@ const loanSchema = new mongoose.Schema(
       required: true,
       // default: Date.now,
     },
+    settlementDate: {
+      type: Date,
+      // required: true,
+      // default: Date.now,
+    },
   },
   {
     timestamps: true, // Adds createdAt and updatedAt fields automatically

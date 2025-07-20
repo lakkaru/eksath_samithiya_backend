@@ -64,9 +64,10 @@ const MemberSchema = new Schema(
     dependents: {
       type: [{ type: mongoose.Schema.Types.ObjectId, ref: "Dependent" }],
     },
-    siblingsCount: { 
-      type: Number, 
-      default: 0 },
+    siblingsCount: {
+      type: Number,
+      default: 0,
+    },
     deactivated_at: {
       type: Date,
       default: null,
@@ -102,6 +103,8 @@ const MemberSchema = new Schema(
       ],
       default: ["member"], // Default role is "member"
     },
+    isBlacklisted: { type: Boolean, default: false },
+    blacklistedUntil: { type: Date, default: null },
   },
   {
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" }, // Auto-manage created_at and updated_at fields

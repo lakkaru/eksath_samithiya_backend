@@ -1820,3 +1820,45 @@ exports.deleteFineById = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+//blacklisting members
+exports.blacklistDueLoanMembers = async (req, res) => {
+  const checkAndBlacklistMembers = async () => {
+    const tenMonthsAgo = new Date();
+    tenMonthsAgo.setMonth(tenMonthsAgo.getMonth() - 10);
+    console.log("tenMonthsAgo :", tenMonthsAgo);
+
+    // const oneYearAgo = new Date()
+    // oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+
+    // Step 1: Blacklist members with active loans older than 10 months
+    const overdueLoans = await Loan.find({
+      loanDate: { $lte: tenMonthsAgo },
+      loanRemainingAmount: { $gt: 0 },
+    });
+    console.log("overdueLoans :", overdueLoans);
+
+    for (const loan of overdueLoans) {
+      await Member.findByIdAndUpdate(loan.memberId, {
+        isBlacklisted: true,
+        // blacklistedUntil: new Date(
+        //   new Date(loan.loanDate).setFullYear(
+        //     new Date(loan.loanDate).getFullYear() + 1
+        //   )
+        // ),
+      });
+    }
+    return res.status(200).json({ message: "Members blacklisted" });
+    // Step 2: Whitelist members whose blacklisted period is over
+    // await Member.updateMany(
+    //   {
+    //     isBlacklisted: true,
+    //     blacklistedUntil: { $lte: new Date() },
+    //   },
+    //   {
+    //     isBlacklisted: false,
+    //     blacklistedUntil: null,
+    //   }
+    // );
+  };
+};

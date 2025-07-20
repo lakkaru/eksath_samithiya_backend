@@ -350,3 +350,5 @@ exports.createLoanPayments = async (req, res) => {
     res.status(500).json({ message: "Error updating loan payments", error });
   }
 };
+
+

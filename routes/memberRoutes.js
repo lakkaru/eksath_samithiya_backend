@@ -7,6 +7,7 @@ const {
   getMemberHasLoanById,
   getMyLoan,
   // getMemberLoanInfo,
+  blacklistDueLoanMembers,
   getMember,
   getPayments,
   getFines,
@@ -80,6 +81,9 @@ router.get("/getNextId", authMiddleware(["vice-secretary"]), getNextId);
 router.get("/getMemberIdsForFuneralAttendance", authMiddleware(["vice-secretary"]), getMemberIdsForFuneralAttendance);
 router.get("/getMembersForMeetingAttendance", authMiddleware(["vice-secretary"]), getMembersForMeetingAttendance);
 router.post("/deleteFine", authMiddleware(["vice-secretary"]), deleteFineById);
+
+//backlist loan overdue members
+router.get("/blacklist", authMiddleware(["loan-treasurer"]), blacklistDueLoanMembers);
 
 // Route to get member id object by member_id (requires authentication)
 // router.get("/_id/:memberId", authMiddleware(), get_id);
