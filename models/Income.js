@@ -1,0 +1,71 @@
+const mongoose = require('mongoose')
+
+const incomeSchema = new mongoose.Schema({
+  date: {
+    type: Date,
+    required: true
+  },
+  category: {
+    type: String,
+    required: true,
+    enum: [
+      // Service Income
+      'කූඩාරම් කුලිය',
+      'පිඟන් කුලිය', 
+      'පුටු කුලිය',
+      'බුෆේ සෙට් කුලිය',
+      'ශබ්ද විකාශන කුලිය',
+      // Financial Income
+      'බැංකු පොලී ආදායම',
+      // Donations
+      'වෙනත් සංවිධානවලින් පරිත්‍යාග',
+      'පුද්ගලික පරිත්‍යාග',
+      'රජයේ ආධාර',
+      // Other
+      'වෙනත් ආදායම්',
+      'විශේෂ ඉසව්'
+    ]
+  },
+  description: {
+    type: String,
+    required: function() {
+      const serviceCategories = [
+        'කූඩාරම් කුලිය',
+        'පිඟන් කුලිය', 
+        'පුටු කුලිය',
+        'බුෆේ සෙට් කුලිය',
+        'ශබ්ද විකාශන කුලිය'
+      ]
+      const otherRequiredCategories = [
+        'බැංකු පොලී ආදායම',
+        'වෙනත් ආදායම්',
+        'විශේෂ ඉසව්'
+      ]
+      return serviceCategories.includes(this.category) || otherRequiredCategories.includes(this.category)
+    }
+  },
+  amount: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  source: {
+    type: String,
+    required: function() {
+      const donationCategories = [
+        'වෙනත් සංවිධානවලින් පරිත්‍යාග',
+        'පුද්ගලික පරිත්‍යාග',
+        'රජයේ ආධාර'
+      ]
+      return donationCategories.includes(this.category)
+    }
+  }
+}, {
+  timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
+})
+
+// Index for better query performance
+incomeSchema.index({ date: 1 })
+incomeSchema.index({ category: 1 })
+
+module.exports = mongoose.model('Income', incomeSchema)
