@@ -1,4 +1,6 @@
 const Income = require('../models/Income')
+const MembershipPayment = require('../models/MembershipPayment')
+const FinePayment = require('../models/FinePayment')
 
 // Add new income
 const addIncome = async (req, res) => {
@@ -88,38 +90,117 @@ const addIncome = async (req, res) => {
   }
 }
 
-// Get incomes with date range filter
+// Get incomes with date range filter (includes all income sources)
 const getIncomes = async (req, res) => {
   try {
     const { startDate, endDate, category } = req.query
     
-    let filter = {}
+    let dateFilter = {}
     
     // Date range filter
     if (startDate && endDate) {
-      filter.date = {
+      dateFilter.date = {
         $gte: new Date(startDate),
         $lte: new Date(endDate)
       }
     }
-    
-    // Category filter
+
+    // Get other incomes (service, financial, donations, etc.)
+    let incomeFilter = { ...dateFilter }
     if (category && category !== 'all') {
-      filter.category = category
+      incomeFilter.category = category
     }
 
-    const incomes = await Income.find(filter)
+    const otherIncomes = await Income.find(incomeFilter)
       .sort({ date: -1 })
       .lean()
 
+    // Add type field to other incomes
+    const transformedOtherIncomes = otherIncomes.map(income => ({
+      ...income,
+      type: 'other'
+    }))
+
+    let allIncomes = [...transformedOtherIncomes]
+
+    // Get membership payments summary (only if not filtering by other categories)
+    if (!category || category === 'all' || category === 'සාමාජික ගාස්තු') {
+      const membershipPayments = await MembershipPayment.find(dateFilter)
+        .sort({ date: -1 })
+        .lean()
+
+      if (membershipPayments.length > 0) {
+        const totalMembershipAmount = membershipPayments.reduce((sum, payment) => sum + payment.amount, 0)
+        const membershipSummary = {
+          _id: 'membership-summary',
+          date: membershipPayments[0].date, // Latest payment date
+          category: 'සාමාජික ගාස්තු',
+          description: `සාමාජික ගෙවීම් සාරාංශය (${membershipPayments.length} ගෙවීම්)`,
+          amount: totalMembershipAmount,
+          source: 'සාමාජික ගෙවීම්',
+          created_at: membershipPayments[0].createdAt,
+          type: 'membership-summary'
+        }
+        allIncomes.push(membershipSummary)
+      }
+    }
+
+    // Get fine payments summary (only if not filtering by other categories)
+    if (!category || category === 'all' || category === 'දඩ මුදල්') {
+      const finePayments = await FinePayment.find(dateFilter)
+        .sort({ date: -1 })
+        .lean()
+
+      if (finePayments.length > 0) {
+        const totalFineAmount = finePayments.reduce((sum, payment) => sum + payment.amount, 0)
+        const fineSummary = {
+          _id: 'fine-summary',
+          date: finePayments[0].date, // Latest payment date
+          category: 'දඩ මුදල්',
+          description: `දඩ ගෙවීම් සාරාංශය (${finePayments.length} ගෙවීම්)`,
+          amount: totalFineAmount,
+          source: 'දඩ ගෙවීම්',
+          created_at: finePayments[0].createdAt,
+          type: 'fine-summary'
+        }
+        allIncomes.push(fineSummary)
+      }
+    }
+
+    // Filter by specific category if requested
+    let filteredIncomes = allIncomes
+    if (category && category !== 'all') {
+      filteredIncomes = allIncomes.filter(income => income.category === category)
+    }
+
+    // Sort by priority: membership summary first, fine summary second, then other incomes by date
+    filteredIncomes.sort((a, b) => {
+      // Priority order: membership-summary (1), fine-summary (2), other (3)
+      const getPriority = (income) => {
+        if (income.type === 'membership-summary') return 1
+        if (income.type === 'fine-summary') return 2
+        return 3
+      }
+      
+      const priorityA = getPriority(a)
+      const priorityB = getPriority(b)
+      
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB
+      }
+      
+      // If same priority, sort by date (oldest first)
+      return new Date(a.date) - new Date(b.date)
+    })
+
     // Calculate total amount
-    const totalAmount = incomes.reduce((sum, income) => sum + income.amount, 0)
+    const totalAmount = filteredIncomes.reduce((sum, income) => sum + income.amount, 0)
 
     res.json({
       success: true,
-      incomes,
+      incomes: filteredIncomes,
       totalAmount,
-      count: incomes.length
+      count: filteredIncomes.length
     })
 
   } catch (error) {
