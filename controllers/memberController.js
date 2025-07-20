@@ -1970,3 +1970,41 @@ exports.createMember = async (req, res) => {
     });
   }
 };
+
+// Search members by area
+exports.searchMembersByArea = async (req, res) => {
+  try {
+    const { area } = req.query;
+
+    if (!area) {
+      return res.status(400).json({
+        error: "Area parameter is required"
+      });
+    }
+
+    // Search for members in the specified area
+    const members = await Member.find({
+      area: area,
+      $or: [
+        { deactivated_at: { $exists: false } }, // No deactivated_at field
+        { deactivated_at: null }, // deactivated_at is null
+      ],
+    })
+      .select("member_id name area mobile whatsApp address status joined_date")
+      .sort({ member_id: 1 }); // Sort by member_id
+
+    res.status(200).json({
+      success: true,
+      area: area,
+      count: members.length,
+      members: members,
+    });
+
+  } catch (error) {
+    console.error("Error searching members by area:", error);
+    res.status(500).json({
+      error: "An error occurred while searching members",
+      details: error.message,
+    });
+  }
+};
