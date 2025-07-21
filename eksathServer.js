@@ -48,6 +48,7 @@ app.use("/account", accountRoutes);
 app.use("/funeral", funeralRoutes);
 app.use("/forms", formsRoutes);
 app.use("/meeting", meetingRoutes);
+app.use("/period-balance", require("./routes/periodBalanceRoutes"));
 
 //Start the server
 app.listen(PORT, () => {
