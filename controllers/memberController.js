@@ -1567,7 +1567,7 @@ exports.getMembershipDeathById = async (req, res) => {
 //get membership all details for member info view
 exports.getMemberAllInfoById = async (req, res) => {
   try {
-    const { member_id } = req.query;
+    const { member_id, exclude_loan_installment } = req.query;
     // console.log(member_id);
     const member = await getMembershipDetails(member_id);
     //  console.log('member:', member)
@@ -1598,16 +1598,36 @@ exports.getMemberAllInfoById = async (req, res) => {
     // console.log("finesTotal:", finesTotal);
     const loanInfo = await memberLoanInfo(member_Id);
     // console.log("Loan Info:", loanInfo);
-    const totalDue = loanInfo?.calculatedInterest?.installment
-      ? member.previousDue +
-        finesTotal -
-        finesTotalPayments +
-        currentMembershipDue +
-        loanInfo.calculatedInterest.installment
-      : member.previousDue +
-        finesTotal -
-        finesTotalPayments +
-        currentMembershipDue;
+    
+    // Calculate totalDue - include loan installment based on unpaid months
+    let totalDue;
+    const hasUnpaidLoanMonths = loanInfo?.calculatedInterest?.int > 0 || loanInfo?.calculatedInterest?.penInt > 0;
+    
+    if (exclude_loan_installment === 'true') {
+      // For guarantors: include loan installments only if there are unpaid months
+      totalDue = hasUnpaidLoanMonths && loanInfo?.calculatedInterest?.installment
+        ? member.previousDue +
+          finesTotal -
+          finesTotalPayments +
+          currentMembershipDue +
+          loanInfo.calculatedInterest.installment
+        : member.previousDue +
+          finesTotal -
+          finesTotalPayments +
+          currentMembershipDue;
+    } else {
+      // For loan borrowers: include loan installments only if there are unpaid months
+      totalDue = hasUnpaidLoanMonths && loanInfo?.calculatedInterest?.installment
+        ? member.previousDue +
+          finesTotal -
+          finesTotalPayments +
+          currentMembershipDue +
+          loanInfo.calculatedInterest.installment
+        : member.previousDue +
+          finesTotal -
+          finesTotalPayments +
+          currentMembershipDue;
+    }
     console.log("totalDue:", totalDue);
 
     return res.status(200).json({
