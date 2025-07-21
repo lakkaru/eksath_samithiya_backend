@@ -6,6 +6,7 @@ const {
   getActiveLoans,
   getLoanOfMember,
   createLoanPayments,
+  getLoanPaymentsReport,
 } = require("../controllers/loanController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -33,6 +34,13 @@ router.post(
   "/Payments",
   authMiddleware(["loan-treasurer"]),
   createLoanPayments
+);
+
+//get loan payments report within date range
+router.get(
+  "/payments-report",
+  authMiddleware(["loan-treasurer"]),
+  getLoanPaymentsReport
 );
 
 module.exports = router;

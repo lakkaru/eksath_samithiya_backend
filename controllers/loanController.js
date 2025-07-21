@@ -351,4 +351,140 @@ exports.createLoanPayments = async (req, res) => {
   }
 };
 
+// Get loan payments report within date range
+exports.getLoanPaymentsReport = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Start date and end date are required"
+      });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    // Set end date to end of day
+    end.setHours(23, 59, 59, 999);
+
+    // Fetch all payment types within the date range
+    const [principalPayments, interestPayments, penaltyPayments] = await Promise.all([
+      LoanPrinciplePayment.find({
+        date: { $gte: start, $lte: end }
+      }).populate({
+        path: 'loanId',
+        populate: {
+          path: 'memberId',
+          select: 'name member_id'
+        }
+      }).sort({ date: -1 }),
+      
+      LoanInterestPayment.find({
+        date: { $gte: start, $lte: end }
+      }).populate({
+        path: 'loanId',
+        populate: {
+          path: 'memberId',
+          select: 'name member_id'
+        }
+      }).sort({ date: -1 }),
+      
+      PenaltyIntPayment.find({
+        date: { $gte: start, $lte: end }
+      }).populate({
+        path: 'loanId',
+        populate: {
+          path: 'memberId',
+          select: 'name member_id'
+        }
+      }).sort({ date: -1 })
+    ]);
+
+    // Combine and organize payments by date and loan
+    const paymentMap = new Map();
+
+    // Add principal payments
+    principalPayments.forEach(payment => {
+      const key = `${payment.date.toDateString()}-${payment.loanId._id}`;
+      if (!paymentMap.has(key)) {
+        paymentMap.set(key, {
+          paymentDate: payment.date,
+          loanId: payment.loanId,
+          memberId: payment.loanId.memberId,
+          principalAmount: 0,
+          interestAmount: 0,
+          penaltyInterestAmount: 0,
+          amount: 0
+        });
+      }
+      const paymentRecord = paymentMap.get(key);
+      paymentRecord.principalAmount += payment.amount;
+      paymentRecord.amount += payment.amount;
+    });
+
+    // Add interest payments
+    interestPayments.forEach(payment => {
+      const key = `${payment.date.toDateString()}-${payment.loanId._id}`;
+      if (!paymentMap.has(key)) {
+        paymentMap.set(key, {
+          paymentDate: payment.date,
+          loanId: payment.loanId,
+          memberId: payment.loanId.memberId,
+          principalAmount: 0,
+          interestAmount: 0,
+          penaltyInterestAmount: 0,
+          amount: 0
+        });
+      }
+      const paymentRecord = paymentMap.get(key);
+      paymentRecord.interestAmount += payment.amount;
+      paymentRecord.amount += payment.amount;
+    });
+
+    // Add penalty interest payments
+    penaltyPayments.forEach(payment => {
+      const key = `${payment.date.toDateString()}-${payment.loanId._id}`;
+      if (!paymentMap.has(key)) {
+        paymentMap.set(key, {
+          paymentDate: payment.date,
+          loanId: payment.loanId,
+          memberId: payment.loanId.memberId,
+          principalAmount: 0,
+          interestAmount: 0,
+          penaltyInterestAmount: 0,
+          amount: 0
+        });
+      }
+      const paymentRecord = paymentMap.get(key);
+      paymentRecord.penaltyInterestAmount += payment.amount;
+      paymentRecord.amount += payment.amount;
+    });
+
+    // Convert map to array and sort by date (newest first)
+    const payments = Array.from(paymentMap.values()).sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate));
+
+    res.status(200).json({
+      success: true,
+      payments,
+      summary: {
+        totalPayments: payments.length,
+        totalAmount: payments.reduce((sum, p) => sum + p.amount, 0),
+        totalPrincipal: payments.reduce((sum, p) => sum + p.principalAmount, 0),
+        totalInterest: payments.reduce((sum, p) => sum + p.interestAmount, 0),
+        totalPenaltyInterest: payments.reduce((sum, p) => sum + p.penaltyInterestAmount, 0)
+      }
+    });
+
+  } catch (error) {
+    console.error("Error fetching loan payments report:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching loan payments report",
+      error: error.message
+    });
+  }
+};
+
 
