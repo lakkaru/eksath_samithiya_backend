@@ -9,19 +9,23 @@ const incomeSchema = new mongoose.Schema({
     type: String,
     required: true,
     enum: [
-      // Service Income
+      // === සේවා ආදායම (Service Income) ===
       'කූඩාරම් කුලිය',
       'පිඟන් කුලිය', 
       'පුටු කුලිය',
       'බුෆේ සෙට් කුලිය',
       'ශබ්ද විකාශන කුලිය',
-      // Financial Income
+      
+      // === මූල්‍ය ආදායම (Financial Income) ===
       'බැංකු පොලී ආදායම',
-      // Donations
+      'බැංකු මුදල් ආපසු ගැනීම',
+      
+      // === පරිත්‍යාග (Donations) ===
       'වෙනත් සංවිධානවලින් පරිත්‍යාග',
       'පුද්ගලික පරිත්‍යාග',
       'රජයේ ආධාර',
-      // Other
+      
+      // === අනෙකුත් ආදායම් (Other Income) ===
       'වෙනත් ආදායම්',
       'විශේෂ ඉසව්'
     ]
@@ -29,6 +33,7 @@ const incomeSchema = new mongoose.Schema({
   description: {
     type: String,
     required: function() {
+      // සේවා ආදායම් - Service Income Categories (Description Required)
       const serviceCategories = [
         'කූඩාරම් කුලිය',
         'පිඟන් කුලිය', 
@@ -36,11 +41,15 @@ const incomeSchema = new mongoose.Schema({
         'බුෆේ සෙට් කුලිය',
         'ශබ්ද විකාශන කුලිය'
       ]
+      
+      // මූල්‍ය සහ අනෙකුත් ආදායම් - Financial & Other Categories (Description Required)
       const otherRequiredCategories = [
         'බැංකු පොලී ආදායම',
+        'බැංකු මුදල් ආපසු ගැනීම',
         'වෙනත් ආදායම්',
         'විශේෂ ඉසව්'
       ]
+      
       return serviceCategories.includes(this.category) || otherRequiredCategories.includes(this.category)
     }
   },
@@ -52,6 +61,7 @@ const incomeSchema = new mongoose.Schema({
   source: {
     type: String,
     required: function() {
+      // පරිත්‍යාග ප්‍රවර්ග - Donation Categories (Source Required)
       const donationCategories = [
         'වෙනත් සංවිධානවලින් පරිත්‍යාග',
         'පුද්ගලික පරිත්‍යාග',
