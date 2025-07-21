@@ -410,6 +410,7 @@ exports.getLoanPaymentsReport = async (req, res) => {
       const key = `${payment.date.toDateString()}-${payment.loanId._id}`;
       if (!paymentMap.has(key)) {
         paymentMap.set(key, {
+          _id: payment._id, // Add payment ID for edit/delete operations
           paymentDate: payment.date,
           loanId: payment.loanId,
           memberId: payment.loanId.memberId,
@@ -429,6 +430,7 @@ exports.getLoanPaymentsReport = async (req, res) => {
       const key = `${payment.date.toDateString()}-${payment.loanId._id}`;
       if (!paymentMap.has(key)) {
         paymentMap.set(key, {
+          _id: payment._id, // Use interest payment ID if principal doesn't exist
           paymentDate: payment.date,
           loanId: payment.loanId,
           memberId: payment.loanId.memberId,
@@ -448,6 +450,7 @@ exports.getLoanPaymentsReport = async (req, res) => {
       const key = `${payment.date.toDateString()}-${payment.loanId._id}`;
       if (!paymentMap.has(key)) {
         paymentMap.set(key, {
+          _id: payment._id, // Use penalty payment ID if others don't exist
           paymentDate: payment.date,
           loanId: payment.loanId,
           memberId: payment.loanId.memberId,
@@ -482,6 +485,129 @@ exports.getLoanPaymentsReport = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error fetching loan payments report",
+      error: error.message
+    });
+  }
+};
+
+// Update loan payment
+exports.updateLoanPayment = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const { principalAmount, interestAmount, penaltyInterestAmount, paymentDate, amount } = req.body;
+
+    // Find the principal payment first
+    const principalPayment = await LoanPrinciplePayment.findById(paymentId);
+    
+    if (!principalPayment) {
+      return res.status(404).json({
+        success: false,
+        message: "Payment not found"
+      });
+    }
+
+    const originalDate = principalPayment.date;
+    const loanId = principalPayment.loanId;
+    const newDate = new Date(paymentDate);
+
+    // Update principal payment
+    principalPayment.amount = principalAmount;
+    principalPayment.date = newDate;
+    await principalPayment.save();
+
+    // Find and update interest payment using original date
+    const interestPayment = await LoanInterestPayment.findOne({
+      loanId: loanId,
+      date: {
+        $gte: new Date(originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate()),
+        $lt: new Date(originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate() + 1)
+      }
+    });
+
+    if (interestPayment) {
+      interestPayment.amount = interestAmount;
+      interestPayment.date = newDate;
+      await interestPayment.save();
+    }
+
+    // Find and update penalty payment using original date
+    const penaltyPayment = await PenaltyIntPayment.findOne({
+      loanId: loanId,
+      date: {
+        $gte: new Date(originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate()),
+        $lt: new Date(originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate() + 1)
+      }
+    });
+
+    if (penaltyPayment) {
+      penaltyPayment.amount = penaltyInterestAmount;
+      penaltyPayment.date = newDate;
+      await penaltyPayment.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Payment updated successfully"
+    });
+
+  } catch (error) {
+    console.error("Error updating payment:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error updating payment",
+      error: error.message
+    });
+  }
+};
+
+// Delete loan payment
+exports.deleteLoanPayment = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+
+    // Find the principal payment to get loan info
+    const principalPayment = await LoanPrinciplePayment.findById(paymentId);
+    
+    if (!principalPayment) {
+      return res.status(404).json({
+        success: false,
+        message: "Payment not found"
+      });
+    }
+
+    const paymentDate = principalPayment.date;
+    const loanId = principalPayment.loanId;
+    const principalAmountToRestore = principalPayment.amount;
+
+    // Delete all payment records for this date and loan
+    await Promise.all([
+      LoanPrinciplePayment.deleteOne({ _id: paymentId }),
+      LoanInterestPayment.deleteOne({
+        loanId: loanId,
+        date: paymentDate
+      }),
+      PenaltyIntPayment.deleteOne({
+        loanId: loanId,
+        date: paymentDate
+      })
+    ]);
+
+    // Restore the loan remaining amount
+    await Loan.findByIdAndUpdate(
+      loanId,
+      { $inc: { loanRemainingAmount: principalAmountToRestore } }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Payment deleted successfully"
+    });
+
+  } catch (error) {
+    console.error("Error deleting payment:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error deleting payment",
       error: error.message
     });
   }

@@ -7,6 +7,8 @@ const {
   getLoanOfMember,
   createLoanPayments,
   getLoanPaymentsReport,
+  updateLoanPayment,
+  deleteLoanPayment,
 } = require("../controllers/loanController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -41,6 +43,20 @@ router.get(
   "/payments-report",
   authMiddleware(["loan-treasurer"]),
   getLoanPaymentsReport
+);
+
+//update loan payment
+router.put(
+  "/payment/:paymentId",
+  authMiddleware(["loan-treasurer"]),
+  updateLoanPayment
+);
+
+//delete loan payment
+router.delete(
+  "/payment/:paymentId",
+  authMiddleware(["loan-treasurer"]),
+  deleteLoanPayment
 );
 
 module.exports = router;
