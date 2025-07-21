@@ -9,6 +9,9 @@ const {
   getLoanPaymentsReport,
   updateLoanPayment,
   deleteLoanPayment,
+  updateLoan,
+  deleteLoan,
+  getLoanById,
 } = require("../controllers/loanController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -57,6 +60,27 @@ router.delete(
   "/payment/:paymentId",
   authMiddleware(["loan-treasurer"]),
   deleteLoanPayment
+);
+
+//get single loan by ID
+router.get(
+  "/:id",
+  authMiddleware(["loan-treasurer"]),
+  getLoanById
+);
+
+//update loan
+router.put(
+  "/:id",
+  authMiddleware(["loan-treasurer"]),
+  updateLoan
+);
+
+//delete loan
+router.delete(
+  "/:id",
+  authMiddleware(["loan-treasurer"]),
+  deleteLoan
 );
 
 module.exports = router;

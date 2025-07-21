@@ -14,15 +14,60 @@ exports.createLoan = async (req, res) => {
       loanNumber: loanData.loanNumber,
     });
     if (existingLoan) {
-      return res.status(400).json({ message: "Loan number already exists" });
+      return res.status(400).json({ 
+        success: false,
+        message: "මෙම ණය අංකය දැනටමත් භාවිතයේ ඇත" 
+      });
     }
+
+    // Check if guarantors are already guarantors for other active loans (allow up to 2 loans per guarantor)
+    if (loanData.guarantor1Id) {
+      const existingGuarantor1Loans = await Loan.find({
+        $or: [
+          { guarantor1Id: loanData.guarantor1Id },
+          { guarantor2Id: loanData.guarantor1Id }
+        ],
+        loanRemainingAmount: { $gt: 0 }, // Only check active loans
+      });
+      if (existingGuarantor1Loans.length >= 2) {
+        return res.status(400).json({ 
+          success: false,
+          message: "පළමු ජාමිනුකරු දැනටමත් දෙකක් ණය සඳහා ජාමිනුකරුවෙකු වේ" 
+        });
+      }
+    }
+
+    if (loanData.guarantor2Id) {
+      const existingGuarantor2Loans = await Loan.find({
+        $or: [
+          { guarantor1Id: loanData.guarantor2Id },
+          { guarantor2Id: loanData.guarantor2Id }
+        ],
+        loanRemainingAmount: { $gt: 0 }, // Only check active loans
+      });
+      if (existingGuarantor2Loans.length >= 2) {
+        return res.status(400).json({ 
+          success: false,
+          message: "දෙවන ජාමිනුකරු දැනටමත් දෙකක් ණය සඳහා ජාමිනුකරුවෙකු වේ" 
+        });
+      }
+    }
+
     const newLoan = new Loan({ ...loanData });
     const savedLoan = await newLoan.save();
-    res.status(201).json(savedLoan);
+    res.status(201).json({
+      success: true,
+      message: "ණය සාර්ථකව සෑදීය",
+      loan: savedLoan
+    });
   } catch (error) {
     res
       .status(500)
-      .json({ message: "Error creating loan", error: error.message });
+      .json({ 
+        success: false,
+        message: "ණය නිර්මාණය කිරීමේදී දෝෂයක් සිදුවිය", 
+        error: error.message 
+      });
   }
 };
 
@@ -33,6 +78,8 @@ exports.getActiveLoans = async (req, res) => {
       loanRemainingAmount: { $gt: 0 },
     })
       .populate("memberId", "name member_id")
+      .populate("guarantor1Id", "name member_id")
+      .populate("guarantor2Id", "name member_id")
       .sort({ loanNumber: 1 });
 
     const activeLoansWithInterest = await Promise.all(
@@ -608,6 +655,96 @@ exports.deleteLoanPayment = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error deleting payment",
+      error: error.message
+    });
+  }
+};
+
+// Update a loan - DISABLED (No editing allowed)
+exports.updateLoan = async (req, res) => {
+  return res.status(403).json({
+    success: false,
+    message: "ණය සංස්කරණය කිරීම අනුමත නොවේ"
+  });
+};
+
+// Delete a loan
+exports.deleteLoan = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find the loan by ID
+    const loan = await Loan.findById(id);
+    if (!loan) {
+      return res.status(404).json({
+        success: false,
+        message: "ණය සොයා ගත නොහැක"
+      });
+    }
+
+    // Check if loan was created today (same day restriction)
+    const today = new Date();
+    const loanDate = new Date(loan.loanDate);
+    const isToday = today.toDateString() === loanDate.toDateString();
+
+    if (!isToday) {
+      return res.status(400).json({
+        success: false,
+        message: "අද දිනයේ එකතු කරන ලද ණය පමණක් ඉවත් කළ හැක"
+      });
+    }
+
+    // Check if loan has any payments
+    const hasPayments = await LoanPrinciplePayment.exists({ loanId: id }) ||
+                        await LoanInterestPayment.exists({ loanId: id }) ||
+                        await PenaltyIntPayment.exists({ loanId: id });
+
+    if (hasPayments) {
+      return res.status(400).json({
+        success: false,
+        message: "ගෙවීම් සහිත ණය ඉවත් කළ නොහැක. කරුණාකර මුලින් සියලුම ගෙවීම් ඉවත් කරන්න."
+      });
+    }
+
+    // Delete the loan
+    await Loan.findByIdAndDelete(id);
+
+    res.status(200).json({
+      success: true,
+      message: "ණය සාර්ථකව ඉවත් කරන ලදී"
+    });
+  } catch (error) {
+    console.error("Error deleting loan:", error);
+    res.status(500).json({
+      success: false,
+      message: "ණය ඉවත් කිරීමේදී දෝෂයක් සිදුවිය",
+      error: error.message
+    });
+  }
+};
+
+// Get a single loan by ID
+exports.getLoanById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const loan = await Loan.findById(id).populate("memberId", "name member_id");
+    if (!loan) {
+      return res.status(404).json({
+        success: false,
+        message: "ණය සොයා ගත නොහැක"
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      loan
+    });
+  } catch (error) {
+    console.error("Error fetching loan:", error);
+    res.status(500).json({
+      success: false,
+      message: "ණය ලබා ගැනීමේදී දෝෂයක් සිදුවිය",
       error: error.message
     });
   }
