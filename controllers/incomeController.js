@@ -39,7 +39,9 @@ const addIncome = async (req, res) => {
     ]
 
     const financialCategories = [
-      'බැංකු පොලී ආදායම'
+      'බැංකු පොලී ආදායම',
+      'බැංකු මුදල් ආපසු ගැනීම',
+      'අවමංගල්‍යයක් සඳහා අතිරේක ආධාර'
     ]
 
     const otherCategories = [
@@ -278,7 +280,9 @@ const updateIncome = async (req, res) => {
     ]
 
     const financialCategories = [
-      'බැංකු පොලී ආදායම'
+      'බැංකු පොලී ආදායම',
+      'බැංකු මුදල් ආපසු ගැනීම',
+      'අවමංගල්‍යයක් සඳහා අතිරේක ආධාර'
     ]
 
     const otherCategories = [

@@ -19,6 +19,7 @@ const incomeSchema = new mongoose.Schema({
       // === මූල්‍ය ආදායම (Financial Income) ===
       'බැංකු පොලී ආදායම',
       'බැංකු මුදල් ආපසු ගැනීම',
+      'අවමංගල්‍යයක් සඳහා අතිරේක ආධාර',
       
       // === පරිත්‍යාග (Donations) ===
       'වෙනත් සංවිධානවලින් පරිත්‍යාග',
@@ -46,6 +47,7 @@ const incomeSchema = new mongoose.Schema({
       const otherRequiredCategories = [
         'බැංකු පොලී ආදායම',
         'බැංකු මුදල් ආපසු ගැනීම',
+        'අවමංගල්‍යයක් සඳහා අතිරේක ආධාර',
         'වෙනත් ආදායම්',
         'විශේෂ ඉසව්'
       ]
