@@ -388,3 +388,53 @@ exports.deleteExpense = async (req, res) => {
     });
   }
 };
+
+// Get all expenses without pagination (for reports and views)
+exports.getAllExpenses = async (req, res) => {
+  try {
+    const { category, startDate, endDate } = req.query;
+
+    // Build filter query
+    let filter = {};
+    
+    if (category) {
+      filter.category = category;
+    }
+
+    if (startDate || endDate) {
+      filter.date = {};
+      if (startDate) {
+        filter.date.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        filter.date.$lte = new Date(endDate);
+      }
+    }
+
+    // Get all expenses without pagination
+    const expenses = await Expense.find(filter)
+      .sort({ date: -1, created_at: -1 });
+
+    // Calculate total amount
+    const totalAmountResult = await Expense.aggregate([
+      { $match: filter },
+      { $group: { _id: null, total: { $sum: "$amount" } } }
+    ]);
+    const totalAmount = totalAmountResult.length > 0 ? totalAmountResult[0].total : 0;
+
+    res.status(200).json({
+      success: true,
+      expenses,
+      totalAmount,
+      count: expenses.length
+    });
+
+  } catch (error) {
+    console.error("Error getting all expenses:", error);
+    res.status(500).json({
+      success: false,
+      error: "An error occurred while fetching all expenses",
+      details: error.message,
+    });
+  }
+};

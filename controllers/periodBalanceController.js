@@ -50,6 +50,7 @@ const getLastBalance = async (req, res) => {
 const saveBalance = async (req, res) => {
   try {
     const { 
+      periodStartDate,
       periodEndDate, 
       endingCashOnHand, 
       endingBankDeposit, 
@@ -58,7 +59,7 @@ const saveBalance = async (req, res) => {
       netCashFlow 
     } = req.body
 
-    if (!periodEndDate || endingCashOnHand === undefined || endingBankDeposit === undefined) {
+    if (!periodStartDate || !periodEndDate || endingCashOnHand === undefined || endingBankDeposit === undefined) {
       return res.status(400).json({
         success: false,
         message: 'Required fields missing'
@@ -69,6 +70,7 @@ const saveBalance = async (req, res) => {
     const balance = await PeriodBalance.findOneAndUpdate(
       { periodEndDate: new Date(periodEndDate) },
       {
+        periodStartDate: new Date(periodStartDate),
         endingCashOnHand: parseFloat(endingCashOnHand),
         endingBankDeposit: parseFloat(endingBankDeposit),
         totalIncome: parseFloat(totalIncome || 0),

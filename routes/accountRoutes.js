@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { createReceipts, getReceiptsByDate, deleteReceipt } = require("../controllers/accountController");
-const { addExpense, getExpenses, getExpenseSummary, getExpenseById, updateExpense, deleteExpense } = require("../controllers/expenseController");
+const { addExpense, getExpenses, getExpenseSummary, getExpenseById, updateExpense, deleteExpense, getAllExpenses } = require("../controllers/expenseController");
 const { addIncome, getIncomes, getIncomeById, updateIncome, deleteIncome, getIncomeStats } = require("../controllers/incomeController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -20,6 +20,9 @@ router.post("/expense", authMiddleware(["treasurer"]), addExpense);
 
 // Get expenses with pagination and filtering
 router.get("/expenses", authMiddleware(["treasurer"]), getExpenses);
+
+// Get all expenses without pagination (for reports and views)
+router.get("/expenses/all", authMiddleware(["treasurer"]), getAllExpenses);
 
 // Get expense summary by category
 router.get("/expense-summary", authMiddleware(["treasurer"]), getExpenseSummary);

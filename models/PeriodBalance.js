@@ -1,6 +1,10 @@
 const mongoose = require('mongoose')
 
 const periodBalanceSchema = new mongoose.Schema({
+  periodStartDate: {
+    type: Date,
+    required: true
+  },
   periodEndDate: {
     type: Date,
     required: true,
