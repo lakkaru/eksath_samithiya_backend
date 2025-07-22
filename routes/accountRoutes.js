@@ -11,8 +11,8 @@ router.get("/receipts", authMiddleware(['treasurer']), getReceiptsByDate);
 // Create new receipt
 router.post("/receipts", authMiddleware(['treasurer']), createReceipts);
 
-// Delete receipt
-router.delete("/receipts/:id/:memberId/:finePayment/:memPayment", authMiddleware(['treasurer']), deleteReceipt);
+// Delete receipt - now only needs date and memberId
+router.delete("/receipts/:id/:memberId", authMiddleware(['treasurer']), deleteReceipt);
 
 // Expense routes
 // Add a new expense

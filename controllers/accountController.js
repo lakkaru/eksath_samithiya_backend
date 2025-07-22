@@ -5,6 +5,7 @@ const Member = require('../models/Member');
 // Get receipts by date
 exports.getReceiptsByDate = async (req, res) => {
   try {
+    console.log( '=== DATE QUERY DEBUG ===');
     const { date } = req.query;
     const queryDate = new Date(date);
     
@@ -27,31 +28,42 @@ exports.getReceiptsByDate = async (req, res) => {
       .sort({ createdAt: -1 })
     ]);
 
-    // Create a map to store payments by memberId
+    // Create a map to store aggregated payments by memberId
     const paymentMap = new Map();
 
-    // Process membership payments
+    // Process membership payments - sum all payments for each member
     membershipPayments.forEach(mp => {
-      const key = `${mp.memberId._id}`;  // Use only memberId as key
-      paymentMap.set(key, {
-        _id: mp._id,
-        memberId: mp.memberId.member_id,
-        name: mp.memberId.name,
-        memPayment: mp.amount,
-        finePayment: 0,
-        member_Id: mp.memberId._id,
-        date: mp.date,
-        createdAt: mp.createdAt
-      });
+      const key = `${mp.memberId._id}`;
+      if (paymentMap.has(key)) {
+        // Add to existing total
+        const existing = paymentMap.get(key);
+        existing.memPayment += mp.amount;
+        // Keep the most recent createdAt
+        if (mp.createdAt > existing.createdAt) {
+          existing.createdAt = mp.createdAt;
+        }
+      } else {
+        // Create new entry
+        paymentMap.set(key, {
+          _id: mp._id,
+          memberId: mp.memberId.member_id,
+          name: mp.memberId.name,
+          memPayment: mp.amount,
+          finePayment: 0,
+          member_Id: mp.memberId._id,
+          date: mp.date,
+          createdAt: mp.createdAt
+        });
+      }
     });
 
-    // Process fine payments
+    // Process fine payments - sum all payments for each member
     finePayments.forEach(fp => {
-      const key = `${fp.memberId._id}`;  // Use only memberId as key
+      const key = `${fp.memberId._id}`;
       if (paymentMap.has(key)) {
-        // Update existing entry with fine payment
+        // Add to existing total
         const existing = paymentMap.get(key);
-        existing.finePayment = fp.amount;
+        existing.finePayment += fp.amount;
         // Keep the most recent createdAt
         if (fp.createdAt > existing.createdAt) {
           existing.createdAt = fp.createdAt;
@@ -127,42 +139,54 @@ exports.createReceipts = async (req, res) => {
   }
 };
 
-// Delete receipt
+// Delete receipt - delete all payments for a member on a specific date
 exports.deleteReceipt = async (req, res) => {
-  const { id, memberId, finePayment, memPayment } = req.params;
+  const { id, memberId } = req.params; // Only need date and memberId now
 
   try {
-    // Delete both payment records for the member if they exist
-    const [deletedMemPayment, deletedFinePayment] = await Promise.all([
-      memPayment > 0 ? MembershipPayment.findOneAndDelete({
+    const queryDate = new Date(id);
+    
+    // Set time to start of day and end of day
+    const startDate = new Date(queryDate.setHours(0, 0, 0, 0));
+    const endDate = new Date(queryDate.setHours(23, 59, 59, 999));
+
+    // First, get the fine payments to calculate total for previousDue update
+    const finePaymentsToDelete = await FinePayment.find({
+      memberId: memberId,
+      date: { $gte: startDate, $lte: endDate }
+    });
+    
+    const totalFineDeleted = finePaymentsToDelete.reduce((sum, payment) => sum + payment.amount, 0);
+
+    // Delete ALL payment records for the member on this date
+    const [deletedMemPayments, deletedFinePayments] = await Promise.all([
+      MembershipPayment.deleteMany({
         memberId: memberId,
-        amount: memPayment,
-        date: new Date(id) // Using the date as identifier
-      }) : null,
-      finePayment > 0 ? FinePayment.findOneAndDelete({
+        date: { $gte: startDate, $lte: endDate }
+      }),
+      FinePayment.deleteMany({
         memberId: memberId,
-        amount: finePayment,
-        date: new Date(id) // Using the date as identifier
-      }) : null
+        date: { $gte: startDate, $lte: endDate }
+      })
     ]);
 
-    // If fine payment was deleted, update member's previousDue
-    if (deletedFinePayment) {
+    // If fine payments were deleted, update member's previousDue
+    if (totalFineDeleted > 0) {
       const member = await Member.findById(memberId);
       if (member) {
-        member.previousDue += parseFloat(finePayment);
+        member.previousDue += totalFineDeleted;
         await member.save();
       }
     }
 
-    if (!deletedMemPayment && !deletedFinePayment) {
-      return res.status(404).json({ error: "Receipts not found" });
+    if (deletedMemPayments.deletedCount === 0 && deletedFinePayments.deletedCount === 0) {
+      return res.status(404).json({ error: "No payments found to delete" });
     }
 
     res.json({ 
-      message: "Receipts deleted successfully",
-      deletedMemPayment,
-      deletedFinePayment
+      message: `Successfully deleted ${deletedMemPayments.deletedCount} membership payments and ${deletedFinePayments.deletedCount} fine payments`,
+      deletedMemPayments: deletedMemPayments.deletedCount,
+      deletedFinePayments: deletedFinePayments.deletedCount
     });
   } catch (error) {
     console.error("Error deleting receipts:", error);
