@@ -10,7 +10,8 @@ exports.addExpense = async (req, res) => {
       "මරණ ප්‍රතිලාභ ගෙවීම්",
       "ක්ෂණික ප්‍රතිලාභ ගෙවීම්", 
       "මළවුන් රැගෙන යාමේ ගාස්තු",
-      "ද්‍රව්‍ය ආධාර හිග"
+      "ද්‍රව්‍ය ආධාර හිග",
+      "කලත්‍රයාගේ දෙමව්පිය මරණ ප්‍රතිලාභ ගෙවීම්"
     ];
 
     // Service categories that require description but not paidTo
