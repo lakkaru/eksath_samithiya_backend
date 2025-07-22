@@ -50,7 +50,7 @@ router.get('/last-balance', authMiddleware, async (req, res) => {
 })
 
 // Save period balance
-router.post('/save-balance', authMiddleware, async (req, res) => {
+router.post('/save-balance', authMiddleware(['treasurer']), async (req, res) => {
   try {
     const { 
       periodEndDate, 
@@ -94,7 +94,8 @@ router.post('/save-balance', authMiddleware, async (req, res) => {
     console.error('Error saving balance:', error)
     res.status(500).json({
       success: false,
-      message: 'ශේෂය සුරැකීමේදී දෝෂයක් සිදුවිය'
+      message: 'ශේෂය සුරැකීමේදී දෝෂයක් සිදුවිය',
+      error: error.message
     })
   }
 })
