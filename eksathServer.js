@@ -11,6 +11,7 @@ const accountRoutes = require("./routes/accountRoutes");
 const funeralRoutes = require("./routes/funeralRoutes");
 const formsRoutes = require("./routes/formsRoutes");
 const meetingRoutes = require("./routes/meetingRoutes");
+const periodBalanceRoutes = require("./routes/periodBalanceRoutes");
 
 const PORT = process.env.PORT || 5000;
 
@@ -48,7 +49,7 @@ app.use("/account", accountRoutes);
 app.use("/funeral", funeralRoutes);
 app.use("/forms", formsRoutes);
 app.use("/meeting", meetingRoutes);
-app.use("/period-balance", require("./routes/periodBalanceRoutes"));
+app.use("/period-balance", periodBalanceRoutes);
 
 //Start the server
 app.listen(PORT, () => {
