@@ -12,6 +12,7 @@ const {
   updateLoan,
   deleteLoan,
   getLoanById,
+  getNextLoanNumber,
 } = require("../controllers/loanController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -21,6 +22,14 @@ router.get(
   authMiddleware(["loan-treasurer", "treasurer"]),
   getMemberLoanInfo
 );
+
+//get next available loan number
+router.get(
+  "/next-loan-number",
+  authMiddleware(["loan-treasurer"]),
+  getNextLoanNumber
+);
+
 //create new loan
 router.post("/create", authMiddleware(["loan-treasurer"]), createLoan);
 
