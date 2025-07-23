@@ -295,7 +295,14 @@ async function interestCalculation(
   let loanInstallment = 0;
   // console.log("totalMonths:", totalMonths);
   // console.log("remainingAmount:", remainingAmount);
-  if (totalMonths <= 10) {
+  let principleShouldPay=(10000/10)* totalMonths;
+  let totalPrinciplePaid=10000-remainingAmount;
+  console.log("principleShouldPay: ", principleShouldPay);
+  console.log("totalPrinciplePaid: ", totalPrinciplePaid);
+  if(totalPrinciplePaid>= principleShouldPay){
+    loanInstallment = 0;
+  }
+  else if (totalMonths <= 10) {
     loanInstallment = totalMonths * 1000 - (10000 - remainingAmount);
     // console.log(loanInstallment)
   } else {
