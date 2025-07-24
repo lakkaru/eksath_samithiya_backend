@@ -49,7 +49,7 @@ async function getTotalMembershipPayment(year, _id) {
   const currentYear = new Date(year).getFullYear();
   const startOfYear = new Date(currentYear, 0, 1);
   const endOfYear = new Date(currentYear + 1, 0, 1);
-  console.log(currentYear);
+  // console.log(currentYear);
   const membershipPayments = await MembershipPayment.find({
     memberId: _id,
     date: {
@@ -297,8 +297,8 @@ async function interestCalculation(
   // console.log("remainingAmount:", remainingAmount);
   let principleShouldPay=(10000/10)* totalMonths;
   let totalPrinciplePaid=10000-remainingAmount;
-  console.log("principleShouldPay: ", principleShouldPay);
-  console.log("totalPrinciplePaid: ", totalPrinciplePaid);
+  // console.log("principleShouldPay: ", principleShouldPay);
+  // console.log("totalPrinciplePaid: ", totalPrinciplePaid);
   if(totalPrinciplePaid>= principleShouldPay){
     loanInstallment = 0;
   }
@@ -872,7 +872,7 @@ exports.getMember = async (req, res) => {
       })
     );
 
-    console.log("loanDetailsAsGuarantor:", loanDetailsAsGuarantor);
+    // console.log("loanDetailsAsGuarantor:", loanDetailsAsGuarantor);
 
     res.status(200).json({
       area: member.area,
@@ -1391,7 +1391,7 @@ exports.updateDiedStatus = async (req, res) => {
 //update the Dependent death
 exports.updateDependentDiedStatus = async (req, res) => {
   const { _id, dateOfDeath } = req.body;
-  console.log("dateOfDeath: ", dateOfDeath);
+  // console.log("dateOfDeath: ", dateOfDeath);
   // Input validation
   // if (typeof member_id !== "number") {
   //   return res.status(400).json({
@@ -1635,7 +1635,7 @@ exports.getMemberAllInfoById = async (req, res) => {
           finesTotalPayments +
           currentMembershipDue;
     }
-    console.log("totalDue:", totalDue);
+    // console.log("totalDue:", totalDue);
 
     return res.status(200).json({
       message: "Member information retrieved successfully",
@@ -1821,7 +1821,7 @@ exports.getDueForMeetingSign = async (req, res) => {
 //delete a fine by fine id
 exports.deleteFineById = async (req, res) => {
   try {
-    console.log(req.body);
+    // console.log(req.body);
     const { member_id, fine_id } = req.body;
 
     // Find and update the member by removing the fine with the given fine_id
@@ -1831,7 +1831,7 @@ exports.deleteFineById = async (req, res) => {
       { new: false }
     ).select("member_id name fines");
 
-    console.log("Updated Member:", updatedMember);
+    // console.log("Updated Member:", updatedMember);
 
     if (!updatedMember) {
       return res
@@ -1853,7 +1853,7 @@ exports.blacklistDueLoanMembers = async (req, res) => {
   const checkAndBlacklistMembers = async () => {
     const tenMonthsAgo = new Date();
     tenMonthsAgo.setMonth(tenMonthsAgo.getMonth() - 10);
-    console.log("tenMonthsAgo :", tenMonthsAgo);
+    // console.log("tenMonthsAgo :", tenMonthsAgo);
 
     // const oneYearAgo = new Date()
     // oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
@@ -1863,7 +1863,7 @@ exports.blacklistDueLoanMembers = async (req, res) => {
       loanDate: { $lte: tenMonthsAgo },
       loanRemainingAmount: { $gt: 0 },
     });
-    console.log("overdueLoans :", overdueLoans);
+    // console.log("overdueLoans :", overdueLoans);
 
     for (const loan of overdueLoans) {
       await Member.findByIdAndUpdate(loan.memberId, {
