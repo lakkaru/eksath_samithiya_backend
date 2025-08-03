@@ -39,7 +39,7 @@ router.put("/profile", authMiddleware(), updateProfileInfo);
 router.get("/hasLoan", authMiddleware(), getMemberHasLoanById);
 router.get("/myLoan", authMiddleware(), getMyLoan);
 // router.get("/memberLoan", authMiddleware(), getMemberLoanInfo);
-router.get("/getMemberById/:memberId", authMiddleware(), getMemberById);
+router.get("/getMemberById/:memberId", authMiddleware(["vice-secretary", "treasurer", "loan-treasurer", "chairman"]), getMemberById);
 router.get("/info", authMiddleware(), getMember);
 router.get("/payments", authMiddleware(), getPayments);
 router.get("/fines", authMiddleware(), getFines);
@@ -77,7 +77,7 @@ router.get(
 );
 router.get(
   "/getMemberAllInfoById",
-  authMiddleware(["vice-secretary", "treasurer", "loan-treasurer"]),
+  authMiddleware(["vice-secretary", "treasurer", "loan-treasurer", "chairman"]),
   getMemberAllInfoById
 );
 router.get("/getNextId", authMiddleware(["vice-secretary"]), getNextId);
