@@ -2137,3 +2137,41 @@ exports.searchMembersByName = async (req, res) => {
     });
   }
 };
+
+//get area admin with full details for funeral assignments
+exports.getAreaAdminByArea = async (req, res) => {
+  try {
+    const { area } = req.query;
+    // console.log("area from get area admin: ", area);
+    
+    // Generalize the area for matching
+    const baseArea = area.replace(/\s*\d+$/, "").trim();
+
+    const result = await Admin.findOne(
+      { "areaAdmins.area": { $regex: `^${baseArea}`, $options: "i" } },
+      {
+        "areaAdmins.$": 1, // Return only the matching areaAdmin
+      }
+    ).lean();
+
+    if (result && result.areaAdmins && result.areaAdmins.length > 0) {
+      const areaAdmin = result.areaAdmins[0];
+      res.status(200).json({
+        area: areaAdmin.area,
+        admin: {
+          memberId: areaAdmin.memberId,
+          name: areaAdmin.name
+        },
+        helper1: areaAdmin.helper1 || null,
+        helper2: areaAdmin.helper2 || null
+      });
+    } else {
+      res.status(404).json({ message: "No matching area admin found." });
+    }
+  } catch (error) {
+    console.error("Error getting Area Admin details:", error.message);
+    res
+      .status(500)
+      .json({ message: "Error getting Area Admin details", error: error.message });
+  }
+};

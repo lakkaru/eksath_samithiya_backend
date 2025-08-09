@@ -26,6 +26,7 @@ const {
   createMember,
   searchMembersByArea,
   searchMembersByName,
+  getAreaAdminByArea,
 } = require("../controllers/memberController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -103,4 +104,7 @@ router.post("/create", authMiddleware(["vice-secretary"]), createMember);
 router.get("/searchByArea", authMiddleware(["vice-secretary"]), searchMembersByArea);
 //search members by name
 router.get("/searchByName", authMiddleware(["vice-secretary"]), searchMembersByName);
+//get area admin details for funeral assignments
+router.get("/getAreaAdminByArea", authMiddleware(["vice-secretary"]), getAreaAdminByArea);
+
 module.exports = router;
