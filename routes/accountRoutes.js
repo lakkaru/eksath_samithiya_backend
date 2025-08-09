@@ -6,7 +6,7 @@ const { addIncome, getIncomes, getIncomeById, updateIncome, deleteIncome, getInc
 const authMiddleware = require("../middleware/authMiddleware");
 
 // Get receipts by date
-router.get("/receipts", authMiddleware(['treasurer', 'chairman']), getReceiptsByDate);
+router.get("/receipts", authMiddleware(['treasurer']), getReceiptsByDate);
 
 // Create new receipt
 router.post("/receipts", authMiddleware(['treasurer']), createReceipts);
@@ -19,16 +19,16 @@ router.delete("/receipts/:id/:memberId", authMiddleware(['treasurer']), deleteRe
 router.post("/expense", authMiddleware(["treasurer"]), addExpense);
 
 // Get expenses with pagination and filtering
-router.get("/expenses", authMiddleware(["treasurer", "chairman"]), getExpenses);
+router.get("/expenses", authMiddleware(["treasurer"]), getExpenses);
 
 // Get all expenses without pagination (for reports and views)
-router.get("/expenses/all", authMiddleware(["treasurer", "chairman"]), getAllExpenses);
+router.get("/expenses/all", authMiddleware(["treasurer"]), getAllExpenses);
 
 // Get expense summary by category
-router.get("/expense-summary", authMiddleware(["treasurer", "chairman"]), getExpenseSummary);
+router.get("/expense-summary", authMiddleware(["treasurer"]), getExpenseSummary);
 
 // Get a single expense by ID
-router.get("/expense/:id", authMiddleware(["treasurer", "chairman"]), getExpenseById);
+router.get("/expense/:id", authMiddleware(["treasurer"]), getExpenseById);
 
 // Update an expense
 router.put("/expense/:id", authMiddleware(["treasurer"]), updateExpense);
@@ -41,13 +41,13 @@ router.delete("/expense/:id", authMiddleware(["treasurer"]), deleteExpense);
 router.post("/income", authMiddleware(["treasurer"]), addIncome);
 
 // Get incomes with pagination and filtering
-router.get("/incomes", authMiddleware(["treasurer", "chairman"]), getIncomes);
+router.get("/incomes", authMiddleware(["treasurer"]), getIncomes);
 
 // Get income statistics
-router.get("/income-stats", authMiddleware(["treasurer", "chairman"]), getIncomeStats);
+router.get("/income-stats", authMiddleware(["treasurer"]), getIncomeStats);
 
 // Get a single income by ID
-router.get("/income/:id", authMiddleware(["treasurer", "chairman"]), getIncomeById);
+router.get("/income/:id", authMiddleware(["treasurer"]), getIncomeById);
 
 // Update an income
 router.put("/income/:id", authMiddleware(["treasurer"]), updateIncome);

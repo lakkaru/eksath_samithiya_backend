@@ -9,28 +9,6 @@ exports.createLoan = async (req, res) => {
   const loanData = req.body;
   try {
     // console.log('loanData: ', loanData)
-    
-    // Check if member is blacklisted
-    const member = await Member.findById(loanData.memberId);
-    if (member && member.isBlacklisted) {
-      const currentDate = new Date();
-      const blacklistUntil = new Date(member.blacklistedUntil);
-      
-      if (currentDate < blacklistUntil) {
-        // Member is still blacklisted
-        return res.status(400).json({ 
-          success: false,
-          message: `සාමාජිකයා ${blacklistUntil.toLocaleDateString('si-LK')} දින දක්වා අලුත් ණය සඳහා තහනම්ය` 
-        });
-      } else {
-        // Blacklist period has expired, remove blacklist
-        await Member.findByIdAndUpdate(loanData.memberId, {
-          isBlacklisted: false,
-          blacklistedUntil: null
-        });
-      }
-    }
-
     // Ensure the loan number is unique
     const existingLoan = await Loan.findOne({
       loanNumber: loanData.loanNumber,
@@ -406,33 +384,6 @@ exports.createLoanPayments = async (req, res) => {
       { $inc: { loanRemainingAmount: -amounts.principle } }, // Reduce the remaining amount atomically
       { new: true, runValidators: true } // Return the updated document and apply validation
     );
-
-    // Check if loan is fully settled and if duration exceeded 10 months for blacklisting
-    if (updatedLoan && updatedLoan.loanRemainingAmount === 0) {
-      // Loan is fully settled, update settlement date
-      await Loan.findByIdAndUpdate(loanId, { 
-        settlementDate: new Date(date) 
-      });
-
-      // Calculate total loan duration
-      const loanStartDate = new Date(updatedLoan.loanDate);
-      const settlementDate = new Date(date);
-      const totalMonths = Math.ceil(
-        (settlementDate.getFullYear() - loanStartDate.getFullYear()) * 12 +
-        settlementDate.getMonth() - loanStartDate.getMonth()
-      );
-
-      // If loan duration exceeded 10 months, blacklist the member for 1 year from settlement date
-      if (totalMonths > 10) {
-        const blacklistUntil = new Date(settlementDate);
-        blacklistUntil.setFullYear(blacklistUntil.getFullYear() + 1);
-
-        await Member.findByIdAndUpdate(updatedLoan.memberId, {
-          isBlacklisted: true,
-          blacklistedUntil: blacklistUntil
-        });
-      }
-    }
 
     res.status(201).json({
       message: "Payment recorded successfully.",

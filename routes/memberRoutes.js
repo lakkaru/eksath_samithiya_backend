@@ -26,7 +26,6 @@ const {
   createMember,
   searchMembersByArea,
   searchMembersByName,
-  getAreaAdminByArea,
 } = require("../controllers/memberController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -40,7 +39,7 @@ router.put("/profile", authMiddleware(), updateProfileInfo);
 router.get("/hasLoan", authMiddleware(), getMemberHasLoanById);
 router.get("/myLoan", authMiddleware(), getMyLoan);
 // router.get("/memberLoan", authMiddleware(), getMemberLoanInfo);
-router.get("/getMemberById/:memberId", authMiddleware(["vice-secretary", "treasurer", "loan-treasurer", "chairman"]), getMemberById);
+router.get("/getMemberById/:memberId", authMiddleware(), getMemberById);
 router.get("/info", authMiddleware(), getMember);
 router.get("/payments", authMiddleware(), getPayments);
 router.get("/fines", authMiddleware(), getFines);
@@ -73,18 +72,18 @@ router.get(
 );
 router.get(
   "/getMembershipDeathById",
-  authMiddleware(["vice-secretary"]),
+  authMiddleware(["vice-secretary", "treasurer"]),
   getMembershipDeathById
 );
 router.get(
   "/getMemberAllInfoById",
-  authMiddleware(["vice-secretary", "treasurer", "loan-treasurer", "chairman"]),
+  authMiddleware(["vice-secretary", "treasurer", "loan-treasurer"]),
   getMemberAllInfoById
 );
 router.get("/getNextId", authMiddleware(["vice-secretary"]), getNextId);
 router.get("/getMemberIdsForFuneralAttendance", authMiddleware(["vice-secretary"]), getMemberIdsForFuneralAttendance);
 router.get("/getMembersForMeetingAttendance", authMiddleware(["vice-secretary"]), getMembersForMeetingAttendance);
-router.post("/deleteFine", authMiddleware(["vice-secretary"]), deleteFineById);
+router.post("/deleteFine", authMiddleware(["vice-secretary", "treasurer"]), deleteFineById);
 
 //backlist loan overdue members
 router.get("/blacklist", authMiddleware(["loan-treasurer"]), blacklistDueLoanMembers);
@@ -104,7 +103,4 @@ router.post("/create", authMiddleware(["vice-secretary"]), createMember);
 router.get("/searchByArea", authMiddleware(["vice-secretary"]), searchMembersByArea);
 //search members by name
 router.get("/searchByName", authMiddleware(["vice-secretary"]), searchMembersByName);
-//get area admin details for funeral assignments
-router.get("/getAreaAdminByArea", authMiddleware(["vice-secretary"]), getAreaAdminByArea);
-
 module.exports = router;

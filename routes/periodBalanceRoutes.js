@@ -9,12 +9,12 @@ const {
 const router = express.Router()
 
 // Get the last period balance before a specific date
-router.get('/last-balance', authMiddleware(['treasurer', 'chairman']), getLastBalance)
+router.get('/last-balance', authMiddleware(), getLastBalance)
 
 // Save period balance
 router.post('/save-balance', authMiddleware(['treasurer']), saveBalance)
 
 // Get all period balances (for history/debugging)
-router.get('/all-balances', authMiddleware(['treasurer', 'chairman']), getAllBalances)
+router.get('/all-balances', authMiddleware(), getAllBalances)
 
 module.exports = router
