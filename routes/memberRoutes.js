@@ -29,6 +29,8 @@ const {
   deleteMember,
   searchMembersByArea,
   searchMembersByName,
+  getAreas,
+  getMembersForCollection,
 } = require("../controllers/memberController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -112,4 +114,9 @@ router.delete("/delete/:member_id", authMiddleware(["vice-secretary"]), deleteMe
 router.get("/searchByArea", authMiddleware(["vice-secretary"]), searchMembersByArea);
 //search members by name
 router.get("/searchByName", authMiddleware(["vice-secretary"]), searchMembersByName);
+//get all areas
+router.get("/areas", authMiddleware(["vice-secretary"]), getAreas);
+//get members for collection list
+router.get("/forCollection", authMiddleware(["vice-secretary"]), getMembersForCollection);
+
 module.exports = router;

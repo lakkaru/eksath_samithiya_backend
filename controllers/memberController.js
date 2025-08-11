@@ -2429,3 +2429,86 @@ exports.searchMembersByName = async (req, res) => {
     });
   }
 };
+
+// Get all unique areas from members
+exports.getAreas = async (req, res) => {
+  try {
+    const areas = await Member.distinct('area');
+    const filteredAreas = areas.filter(area => area && area.trim() !== '');
+    
+    res.status(200).json({
+      success: true,
+      areas: filteredAreas.sort(),
+    });
+  } catch (error) {
+    console.error("Error fetching areas:", error);
+    res.status(500).json({
+      error: "An error occurred while fetching areas",
+      details: error.message,
+    });
+  }
+};
+
+// Get members for collection list - excludes certain roles, free members, and area admin
+exports.getMembersForCollection = async (req, res) => {
+  try {
+    const { area } = req.query;
+    
+    if (!area) {
+      return res.status(400).json({
+        success: false,
+        error: "Area parameter is required"
+      });
+    }
+
+    // Excluded roles - members with any of these roles should be excluded
+    const excludedRoles = [
+      "chairman", 
+      "secretary", 
+      "treasurer", 
+      "loan-treasurer", 
+      "vice-secretary", 
+      "vice-chairman"
+    ];
+
+    // Get area admin member IDs from Admin collection
+    const adminDoc = await Admin.findOne({});
+    let excludedMemberIds = [];
+    
+    if (adminDoc && adminDoc.areaAdmins) {
+      // Find area admin for the selected area
+      const areaAdmin = adminDoc.areaAdmins.find(admin => admin.area === area);
+      if (areaAdmin) {
+        // Add area admin and helpers to excluded list
+        if (areaAdmin.memberId) excludedMemberIds.push(areaAdmin.memberId);
+        if (areaAdmin.helper1 && areaAdmin.helper1.memberId) excludedMemberIds.push(areaAdmin.helper1.memberId);
+        if (areaAdmin.helper2 && areaAdmin.helper2.memberId) excludedMemberIds.push(areaAdmin.helper2.memberId);
+      }
+    }
+
+    const members = await Member.find({
+      area: area,
+      status: { $ne: "free" }, // Exclude free members - get all except free
+      roles: { $not: { $elemMatch: { $in: excludedRoles } } }, // Exclude members who have ANY excluded roles
+      member_id: { $nin: excludedMemberIds } // Exclude area admin and helpers
+    })
+    .select('member_id name area status roles')
+    .sort({ member_id: 1 });
+
+    res.status(200).json({
+      success: true,
+      area: area,
+      count: members.length,
+      members: members,
+      excludedAreaAdmins: excludedMemberIds, // For debugging
+    });
+
+  } catch (error) {
+    console.error("Error fetching members for collection:", error);
+    res.status(500).json({
+      success: false,
+      error: "An error occurred while fetching members for collection",
+      details: error.message,
+    });
+  }
+};
