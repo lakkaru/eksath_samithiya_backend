@@ -31,6 +31,7 @@ const {
   searchMembersByName,
   getAreas,
   getMembersForCollection,
+  getMembersForCollectionMarking,
 } = require("../controllers/memberController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -118,5 +119,7 @@ router.get("/searchByName", authMiddleware(["vice-secretary"]), searchMembersByN
 router.get("/areas", authMiddleware(["vice-secretary"]), getAreas);
 //get members for collection list
 router.get("/forCollection", authMiddleware(["vice-secretary"]), getMembersForCollection);
+//get members for collection marking
+router.get("/forCollectionMarking", authMiddleware(["vice-secretary"]), getMembersForCollectionMarking);
 
 module.exports = router;

@@ -2512,3 +2512,39 @@ exports.getMembersForCollection = async (req, res) => {
     });
   }
 };
+
+// Get members for collection marking - excludes only free members
+exports.getMembersForCollectionMarking = async (req, res) => {
+  try {
+    const { area } = req.query;
+    
+    if (!area) {
+      return res.status(400).json({
+        success: false,
+        error: "Area parameter is required"
+      });
+    }
+
+    const members = await Member.find({
+      area: area,
+      status: { $ne: "free" } // Exclude only free members
+    })
+    .select('member_id name area status roles')
+    .sort({ member_id: 1 });
+
+    res.status(200).json({
+      success: true,
+      area: area,
+      count: members.length,
+      members: members,
+    });
+
+  } catch (error) {
+    console.error("Error fetching members for collection marking:", error);
+    res.status(500).json({
+      success: false,
+      error: "An error occurred while fetching members for collection marking",
+      details: error.message,
+    });
+  }
+};
