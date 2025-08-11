@@ -1905,7 +1905,8 @@ exports.createMember = async (req, res) => {
       nic, 
       birthday,
       siblingsCount,
-      status 
+      status,
+      dependents 
     } = req.body;
 
     // Validate required fields
@@ -1943,6 +1944,25 @@ exports.createMember = async (req, res) => {
       }
     }
 
+    // Create dependents first if they exist
+    let dependentIds = [];
+    if (dependents && Array.isArray(dependents) && dependents.length > 0) {
+      const validDependents = dependents.filter(dep => dep.name && dep.relationship && dep.birthday);
+      
+      for (const depData of validDependents) {
+        const dependent = new Dependant({
+          name: depData.name.trim(),
+          relationship: depData.relationship,
+          birthday: new Date(depData.birthday),
+          nic: depData.nic || null,
+          dateOfDeath: depData.dateOfDeath ? new Date(depData.dateOfDeath) : null,
+        });
+        
+        const savedDependent = await dependent.save();
+        dependentIds.push(savedDependent._id);
+      }
+    }
+
     // Create new member
     const birthYear = birthday ? new Date(birthday).getFullYear().toString() : member_id.toString();
     
@@ -1964,6 +1984,7 @@ exports.createMember = async (req, res) => {
       meetingAbsents: 0, // Default meeting absents
       fines: [], // Default empty fines array
       password: birthYear, // Set password to birth year if available, otherwise member_id
+      dependents: dependentIds, // Add dependent IDs
     });
 
     const savedMember = await newMember.save();
@@ -1977,6 +1998,7 @@ exports.createMember = async (req, res) => {
         area: savedMember.area,
         status: savedMember.status,
         joined_date: savedMember.joined_date,
+        dependentsCount: dependentIds.length,
       },
     });
 
@@ -1993,6 +2015,209 @@ exports.createMember = async (req, res) => {
 
     res.status(500).json({
       error: "An error occurred while creating the member",
+      details: error.message,
+    });
+  }
+};
+
+// Get member by ID with dependents for update form
+exports.getMemberForUpdate = async (req, res) => {
+  try {
+    const { member_id } = req.params;
+
+    if (!member_id) {
+      return res.status(400).json({
+        error: "Member ID is required"
+      });
+    }
+
+    // Find member and populate dependents
+    const member = await Member.findOne({ member_id })
+      .populate('dependents')
+      .select('-password'); // Exclude password field
+
+    if (!member) {
+      return res.status(404).json({
+        error: "Member not found"
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      member: member
+    });
+
+  } catch (error) {
+    console.error("Error fetching member for update:", error);
+    res.status(500).json({
+      error: "An error occurred while fetching member details",
+      details: error.message,
+    });
+  }
+};
+
+// Update member with dependents
+exports.updateMember = async (req, res) => {
+  try {
+    const { member_id } = req.params;
+    const { 
+      name, 
+      area, 
+      phone, 
+      mobile, 
+      whatsApp, 
+      address, 
+      email, 
+      nic, 
+      birthday,
+      siblingsCount,
+      status,
+      dependents 
+    } = req.body;
+
+    // Validate required fields
+    if (!name) {
+      return res.status(400).json({ 
+        error: "Name is required" 
+      });
+    }
+
+    // Find the existing member
+    const existingMember = await Member.findOne({ member_id });
+    if (!existingMember) {
+      return res.status(404).json({ 
+        error: "Member not found" 
+      });
+    }
+
+    // Check if email already exists for another member
+    if (email && email !== existingMember.email) {
+      const emailExists = await Member.findOne({ 
+        email: email.toLowerCase(), 
+        member_id: { $ne: member_id } 
+      });
+      if (emailExists) {
+        return res.status(400).json({ 
+          error: "Email already exists for another member" 
+        });
+      }
+    }
+
+    // Check if NIC already exists for another member
+    if (nic && nic !== existingMember.nic) {
+      const nicExists = await Member.findOne({ 
+        nic: nic, 
+        member_id: { $ne: member_id } 
+      });
+      if (nicExists) {
+        return res.status(400).json({ 
+          error: "NIC already exists for another member" 
+        });
+      }
+    }
+
+    // Handle dependents update
+    let dependentIds = [];
+    
+    if (dependents && Array.isArray(dependents) && dependents.length > 0) {
+      const validDependents = dependents.filter(dep => dep.name && dep.relationship && dep.birthday);
+      
+      // Remove existing dependents that are not in the update
+      if (existingMember.dependents && existingMember.dependents.length > 0) {
+        for (const existingDepId of existingMember.dependents) {
+          const stillExists = validDependents.find(dep => dep._id && dep._id.toString() === existingDepId.toString());
+          if (!stillExists) {
+            await Dependant.findByIdAndDelete(existingDepId);
+          }
+        }
+      }
+      
+      // Create or update dependents
+      for (const depData of validDependents) {
+        if (depData._id) {
+          // Update existing dependent
+          const updatedDependent = await Dependant.findByIdAndUpdate(
+            depData._id,
+            {
+              name: depData.name.trim(),
+              relationship: depData.relationship,
+              birthday: new Date(depData.birthday),
+              nic: depData.nic || null,
+              dateOfDeath: depData.dateOfDeath ? new Date(depData.dateOfDeath) : null,
+            },
+            { new: true }
+          );
+          if (updatedDependent) {
+            dependentIds.push(updatedDependent._id);
+          }
+        } else {
+          // Create new dependent
+          const dependent = new Dependant({
+            name: depData.name.trim(),
+            relationship: depData.relationship,
+            birthday: new Date(depData.birthday),
+            nic: depData.nic || null,
+            dateOfDeath: depData.dateOfDeath ? new Date(depData.dateOfDeath) : null,
+          });
+          
+          const savedDependent = await dependent.save();
+          dependentIds.push(savedDependent._id);
+        }
+      }
+    } else {
+      // No dependents provided, remove existing ones
+      if (existingMember.dependents && existingMember.dependents.length > 0) {
+        for (const existingDepId of existingMember.dependents) {
+          await Dependant.findByIdAndDelete(existingDepId);
+        }
+      }
+    }
+
+    // Update member
+    const updatedMember = await Member.findOneAndUpdate(
+      { member_id },
+      {
+        name: name.trim(),
+        area: area?.trim(),
+        phone,
+        mobile,
+        whatsApp,
+        address: address?.trim(),
+        email: email?.toLowerCase(),
+        nic,
+        birthday: birthday ? new Date(birthday) : undefined,
+        siblingsCount: siblingsCount || 0,
+        status: status || "regular",
+        dependents: dependentIds,
+      },
+      { new: true, runValidators: true }
+    ).populate('dependents');
+
+    res.status(200).json({
+      success: true,
+      message: "Member updated successfully",
+      member: {
+        member_id: updatedMember.member_id,
+        name: updatedMember.name,
+        area: updatedMember.area,
+        status: updatedMember.status,
+        dependentsCount: dependentIds.length,
+      },
+    });
+
+  } catch (error) {
+    console.error("Error updating member:", error);
+    
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      const duplicateField = Object.keys(error.keyPattern)[0];
+      return res.status(400).json({ 
+        error: `${duplicateField} already exists` 
+      });
+    }
+
+    res.status(500).json({
+      error: "An error occurred while updating the member",
       details: error.message,
     });
   }

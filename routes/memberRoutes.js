@@ -24,6 +24,8 @@ const {
   getMembersForMeetingAttendance,
   deleteFineById,
   createMember,
+  getMemberForUpdate,
+  updateMember,
   searchMembersByArea,
   searchMembersByName,
 } = require("../controllers/memberController");
@@ -99,6 +101,10 @@ router.get("/blacklist", authMiddleware(["loan-treasurer"]), blacklistDueLoanMem
 
 //create member
 router.post("/create", authMiddleware(["vice-secretary"]), createMember);
+//get member for update
+router.get("/get/:member_id", authMiddleware(["vice-secretary"]), getMemberForUpdate);
+//update member
+router.put("/update/:member_id", authMiddleware(["vice-secretary"]), updateMember);
 //search members by area
 router.get("/searchByArea", authMiddleware(["vice-secretary"]), searchMembersByArea);
 //search members by name
