@@ -78,12 +78,12 @@ router.get(
 );
 router.get(
   "/getMembershipDeathById",
-  authMiddleware(["vice-secretary", "treasurer"]),
+  authMiddleware(["vice-secretary", "treasurer", "auditor"]),
   getMembershipDeathById
 );
 router.get(
   "/getMemberAllInfoById",
-  authMiddleware(["vice-secretary", "treasurer", "loan-treasurer"]),
+  authMiddleware(["vice-secretary", "treasurer", "loan-treasurer", "auditor"]),
   getMemberAllInfoById
 );
 router.get("/getNextId", authMiddleware(["vice-secretary"]), getNextId);

@@ -112,6 +112,7 @@ const MemberSchema = new Schema(
         "treasurer",
         "loan-treasurer",
         "vice-secretary",
+        "auditor",
       ],
       default: ["member"], // Default role is "member"
     },

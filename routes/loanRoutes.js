@@ -19,7 +19,7 @@ const authMiddleware = require("../middleware/authMiddleware");
 //get all info about loans of member for new loan
 router.get(
   "/memberInfo/:member_id",
-  authMiddleware(["loan-treasurer", "treasurer"]),
+  authMiddleware(["loan-treasurer", "treasurer", "auditor"]),
   getMemberLoanInfo
 );
 
@@ -34,13 +34,13 @@ router.get(
 router.post("/create", authMiddleware(["loan-treasurer"]), createLoan);
 
 //get all active loans
-router.get("/active-loans", authMiddleware(["loan-treasurer", "treasurer"]), getActiveLoans);
+router.get("/active-loans", authMiddleware(["loan-treasurer", "treasurer", "auditor"]), getActiveLoans);
 
 
 //get loan of a member
 router.get(
   "/member/:memberId",
-  authMiddleware(["loan-treasurer", "treasurer"]),
+  authMiddleware(["loan-treasurer", "treasurer", "auditor"]),
   getLoanOfMember
 );
 //put all payments made for a loan
@@ -53,7 +53,7 @@ router.post(
 //get loan payments report within date range
 router.get(
   "/payments-report",
-  authMiddleware(["loan-treasurer"]),
+  authMiddleware(["loan-treasurer", "auditor"]),
   getLoanPaymentsReport
 );
 
@@ -74,7 +74,7 @@ router.delete(
 //get single loan by ID
 router.get(
   "/:id",
-  authMiddleware(["loan-treasurer", "treasurer"]),
+  authMiddleware(["loan-treasurer", "treasurer", "auditor"]),
   getLoanById
 );
 
