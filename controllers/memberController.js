@@ -2223,6 +2223,73 @@ exports.updateMember = async (req, res) => {
   }
 };
 
+// Delete member and all related data
+exports.deleteMember = async (req, res) => {
+  try {
+    const { member_id } = req.params;
+
+    // Find the member to delete
+    const member = await Member.findOne({ member_id });
+    if (!member) {
+      return res.status(404).json({
+        error: "Member not found"
+      });
+    }
+
+    // Delete all dependents
+    if (member.dependents && member.dependents.length > 0) {
+      await Dependant.deleteMany({ _id: { $in: member.dependents } });
+    }
+
+    // Delete related data
+    const memberId = member._id;
+
+    // Delete membership payments
+    await MembershipPayment.deleteMany({ memberId });
+
+    // Delete fine payments
+    await FinePayment.deleteMany({ memberId });
+
+    // Delete loan payments if member has loans
+    const loans = await Loan.find({ memberId });
+    for (const loan of loans) {
+      await LoanPrinciplePayment.deleteMany({ loanId: loan._id });
+      await LoanInterestPayment.deleteMany({ loanId: loan._id });
+      await PenaltyIntPayment.deleteMany({ loanId: loan._id });
+    }
+
+    // Delete loans
+    await Loan.deleteMany({ memberId });
+
+    // Delete member from funeral records (as attendee)
+    await Funeral.updateMany(
+      { attendees: memberId },
+      { $pull: { attendees: memberId } }
+    );
+
+    // Delete member from meeting attendance
+    await Meeting.updateMany(
+      { attendees: memberId },
+      { $pull: { attendees: memberId } }
+    );
+
+    // Finally delete the member
+    await Member.findOneAndDelete({ member_id });
+
+    res.status(200).json({
+      success: true,
+      message: "Member and all related data deleted successfully"
+    });
+
+  } catch (error) {
+    console.error("Error deleting member:", error);
+    res.status(500).json({
+      error: "An error occurred while deleting the member",
+      details: error.message,
+    });
+  }
+};
+
 // Search members by area
 exports.searchMembersByArea = async (req, res) => {
   try {

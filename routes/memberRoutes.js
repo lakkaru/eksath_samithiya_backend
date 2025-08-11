@@ -26,6 +26,7 @@ const {
   createMember,
   getMemberForUpdate,
   updateMember,
+  deleteMember,
   searchMembersByArea,
   searchMembersByName,
 } = require("../controllers/memberController");
@@ -105,6 +106,8 @@ router.post("/create", authMiddleware(["vice-secretary"]), createMember);
 router.get("/get/:member_id", authMiddleware(["vice-secretary"]), getMemberForUpdate);
 //update member
 router.put("/update/:member_id", authMiddleware(["vice-secretary"]), updateMember);
+//delete member
+router.delete("/delete/:member_id", authMiddleware(["vice-secretary"]), deleteMember);
 //search members by area
 router.get("/searchByArea", authMiddleware(["vice-secretary"]), searchMembersByArea);
 //search members by name
