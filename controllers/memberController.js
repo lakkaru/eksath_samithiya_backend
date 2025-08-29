@@ -1714,6 +1714,38 @@ exports.getMemberIdsForFuneralAttendance = async (req, res) => {
   }
 };
 
+// Get member details for funeral attendance document printing
+exports.getMembersForFuneralDocument = async (req, res) => {
+  try {
+    const members = await Member.find({
+      $or: [
+        { deactivated_at: { $exists: false } }, // No deactivatedDate field
+        { deactivated_at: null },
+      ],
+    })
+      .select("member_id name area status") // Select required fields for document
+      .sort("member_id"); // Sort by member_id
+
+    const membersForDocument = members.map((member) => ({
+      member_id: member.member_id,
+      name: member.name,
+      area: member.area,
+      status: member.status || 'active' // Default to 'active' if no status
+    }));
+
+    res.status(200).json({ 
+      success: true, 
+      members: membersForDocument
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching member details for document.",
+      error: error.message,
+    });
+  }
+};
+
 // Helper function is no longer needed since we're not using status codes
 //get all member ids for meeting attendance chart
 exports.getMembersForMeetingAttendance = async (req, res) => {
