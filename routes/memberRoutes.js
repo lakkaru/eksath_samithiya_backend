@@ -87,7 +87,7 @@ router.get(
   getMemberAllInfoById
 );
 router.get("/getNextId", authMiddleware(["vice-secretary"]), getNextId);
-router.get("/getMemberIdsForFuneralAttendance", authMiddleware(["vice-secretary"]), getMemberIdsForFuneralAttendance);
+router.get("/getMemberIdsForFuneralAttendance", authMiddleware(["vice-secretary", "treasurer", "auditor"]), getMemberIdsForFuneralAttendance);
 router.get("/getMembersForMeetingAttendance", authMiddleware(["vice-secretary"]), getMembersForMeetingAttendance);
 router.post("/deleteFine", authMiddleware(["vice-secretary", "treasurer"]), deleteFineById);
 

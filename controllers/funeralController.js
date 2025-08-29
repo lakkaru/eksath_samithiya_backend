@@ -251,3 +251,145 @@ exports.getFuneralExDueMembersByDeceasedId = async (req, res) => {
     res.status(500).json({ message: "Internal server error." });
   }
 };
+
+// Get available funerals for work attendance
+exports.getAvailableFunerals = async (req, res) => {
+  try {
+    const funerals = await Funeral.find()
+      .populate({
+        path: "member_id",
+        select: "name area member_id dependents",
+        populate: {
+          path: "dependents",
+          select: "name relationship _id"
+        }
+      })
+      .sort({ date: -1 })
+      .limit(50);
+    
+    res.status(200).json({
+      message: "Available funerals fetched successfully.",
+      funerals: funerals
+    });
+  } catch (error) {
+    console.error("Error fetching available funerals:", error);
+    res.status(500).json({ 
+      message: "Internal server error.",
+      error: error.message 
+    });
+  }
+};
+
+// Get funeral by ID with full details
+exports.getFuneralById = async (req, res) => {
+  try {
+    const { funeralId } = req.params;
+    
+    const funeral = await Funeral.findById(funeralId)
+      .populate({
+        path: "member_id",
+        select: "name area member_id dependents",
+        populate: {
+          path: "dependents",
+          select: "name relationship _id"
+        }
+      });
+    
+    if (!funeral) {
+      return res.status(404).json({ message: "Funeral not found." });
+    }
+    
+    res.status(200).json({
+      message: "Funeral details fetched successfully.",
+      funeral: funeral
+    });
+  } catch (error) {
+    console.error("Error fetching funeral details:", error);
+    res.status(500).json({ 
+      message: "Internal server error.",
+      error: error.message 
+    });
+  }
+};
+
+// Update funeral work attendance
+exports.updateWorkAttendance = async (req, res) => {
+  try {
+    const { funeralId, assignmentAbsents } = req.body;
+    
+    if (!funeralId) {
+      return res.status(400).json({ message: "Funeral ID is required." });
+    }
+    
+    const funeral = await Funeral.findById(funeralId);
+    
+    if (!funeral) {
+      return res.status(404).json({ message: "Funeral not found." });
+    }
+    
+    // Get previous absent members to handle fine differences
+    const previousAbsents = funeral.assignmentAbsents || [];
+    const newAbsents = assignmentAbsents || [];
+    
+    // Find members who were previously absent but now present (remove fines)
+    const nowPresent = previousAbsents.filter(memberId => !newAbsents.includes(memberId));
+    
+    // Find members who are newly absent (add fines)
+    const newlyAbsent = newAbsents.filter(memberId => !previousAbsents.includes(memberId));
+    
+    const funeralWorkFine = parseInt(process.env.FUNERAL_WORK_FINE_VALUE) || 500;
+    
+    // Remove fines for members who are now present
+    if (nowPresent.length > 0) {
+      const memberObjectIds = await Member.find({ member_id: { $in: nowPresent } }).select('_id');
+      const objectIds = memberObjectIds.map(m => m._id);
+      
+      await Member.updateMany(
+        { _id: { $in: objectIds } },
+        { 
+          $pull: { 
+            fines: { 
+              eventId: funeralId,
+              eventType: "funeral-work"
+            }
+          }
+        }
+      );
+    }
+    
+    // Add fines for newly absent members
+    if (newlyAbsent.length > 0) {
+      const memberObjectIds = await Member.find({ member_id: { $in: newlyAbsent } }).select('_id');
+      
+      for (let memberObjId of memberObjectIds) {
+        await Member.findByIdAndUpdate(
+          memberObjId._id,
+          {
+            $push: {
+              fines: {
+                eventId: funeralId,
+                eventType: "funeral-work",
+                amount: funeralWorkFine
+              }
+            }
+          }
+        );
+      }
+    }
+    
+    // Update assignment absents
+    funeral.assignmentAbsents = newAbsents;
+    
+    await funeral.save();
+    
+    res.status(200).json({
+      message: "Funeral work attendance updated successfully.",
+      funeral: funeral,
+      finesAdded: newlyAbsent.length,
+      finesRemoved: nowPresent.length
+    });
+  } catch (error) {
+    console.error("Error updating funeral work attendance:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
