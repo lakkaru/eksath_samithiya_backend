@@ -1687,13 +1687,24 @@ exports.getMemberIdsForFuneralAttendance = async (req, res) => {
         { deactivated_at: { $exists: false } }, // No deactivatedDate field
         { deactivated_at: null },
       ],
-      status: { $nin: ["attendance-free", "free"] },
+      // Include all members, don't exclude any status
     })
-      .select("member_id") // Select only the member_id field
+      .select("member_id status") // Select member_id and status fields
       .sort("member_id"); // Sort by member_id
 
+    // Create both the simple array for backward compatibility and detailed array with status
     const memberIds = members.map((member) => member.member_id);
-    res.status(200).json({ success: true, memberIds: memberIds });
+    const membersWithStatus = members.map((member) => ({
+      member_id: member.member_id,
+      status: member.status || 'active', // Default to 'active' if no status
+      showStatus: member.status === 'attendance-free' || member.status === 'free' // Only show these statuses
+    }));
+
+    res.status(200).json({ 
+      success: true, 
+      memberIds: memberIds, // Keep for backward compatibility
+      membersWithStatus: membersWithStatus // New detailed format
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -1702,6 +1713,8 @@ exports.getMemberIdsForFuneralAttendance = async (req, res) => {
     });
   }
 };
+
+// Helper function is no longer needed since we're not using status codes
 //get all member ids for meeting attendance chart
 exports.getMembersForMeetingAttendance = async (req, res) => {
   try {

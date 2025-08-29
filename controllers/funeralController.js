@@ -71,11 +71,18 @@ exports.getFuneralByDeceasedId = async (req, res) => {
     //   console.log(req.query)
     const { deceased_id } = req.query;
 
-    const funeral_id = await Funeral.findOne({
+    const funeral = await Funeral.findOne({
       deceased_id: deceased_id,
     }).select("_id"); // Find the funeral by deceased_id
-    //   console.log(funeral_id)
-    return res.status(200).json(funeral_id);
+    
+    if (!funeral) {
+      return res.status(404).json({
+        message: "Funeral not found for the given deceased ID",
+      });
+    }
+    
+    //   console.log(funeral._id.toString())
+    return res.status(200).json(funeral._id.toString());
   } catch (error) {
     console.error("Error getting funeral by deceased_id:", error.message);
     res.status(500).json({
@@ -85,51 +92,115 @@ exports.getFuneralByDeceasedId = async (req, res) => {
   }
 };
 
-// Update event absents
+// Update event absents with smart fine management
 exports.updateFuneralAbsents = async (req, res) => {
   try {
-    const fineAmount = 100;
+    const funeralAttendanceFine = parseInt(process.env.FUNERAL_ATTENDANCE_FINE_VALUE) || 100;
     const { funeral_id, absentArray } = req.body.absentData;
-    // console.log(funeral_id, absentArray);
-    //  return
+    
     // Check if both funeral_id and absentArray are provided
     if (!funeral_id || !Array.isArray(absentArray)) {
       return res.status(400).json({ message: "Invalid request data." });
     }
 
+    // Get current funeral to check previous absents
+    const currentFuneral = await Funeral.findById(funeral_id);
+    if (!currentFuneral) {
+      return res.status(404).json({ message: "Funeral not found." });
+    }
+
+    const previousAbsents = currentFuneral.eventAbsents || [];
+    const newAbsents = absentArray || [];
+    
+    // Find members who were previously absent but now present (remove fines)
+    const nowPresent = previousAbsents.filter(memberId => !newAbsents.includes(memberId));
+    
+    // Find members who are newly absent (add fines)
+    const newlyAbsent = newAbsents.filter(memberId => !previousAbsents.includes(memberId));
+
+    // Get members who should be excluded from fines (assigned to work, removed, or have special status)
+    // Extract member_id from assignment objects
+    const cemeteryAssignedIds = (currentFuneral.cemeteryAssignments || []).map(assignment => assignment.member_id);
+    const funeralAssignedIds = (currentFuneral.funeralAssignments || []).map(assignment => assignment.member_id);
+    const removedMemberIds = (currentFuneral.removedMembers || []).map(member => member.member_id);
+    
+    // Get members with 'free' and 'attendance-free' status (they shouldn't get fines)
+    const membersWithFreeStatus = await Member.find({
+      member_id: { $in: newlyAbsent },
+      status: { $in: ['free', 'attendance-free'] }
+    }).select('member_id');
+    const freeStatusMemberIds = membersWithFreeStatus.map(member => member.member_id);
+    
+    const excludedFromFines = [
+      ...cemeteryAssignedIds,
+      ...funeralAssignedIds,
+      ...removedMemberIds,
+      ...freeStatusMemberIds
+    ];
+
+    // Filter newly absent members to exclude those with assignments, who are removed, or have free status
+    const newlyAbsentEligibleForFines = newlyAbsent.filter(memberId => 
+      !excludedFromFines.includes(memberId)
+    );
+
+    console.log(`Members newly absent: ${newlyAbsent.length}`);
+    console.log(`Cemetery assigned: ${cemeteryAssignedIds.length}, Funeral assigned: ${funeralAssignedIds.length}, Removed: ${removedMemberIds.length}`);
+    console.log(`Free/Attendance-Free status: ${freeStatusMemberIds.length}`);
+    console.log(`Total excluded from fines: ${excludedFromFines.length}`);
+    console.log(`Members eligible for fines: ${newlyAbsentEligibleForFines.length}`);
+
+    // Remove fines for members who are now present
+    if (nowPresent.length > 0) {
+      const memberObjectIds = await Member.find({ member_id: { $in: nowPresent } }).select('_id');
+      const objectIds = memberObjectIds.map(m => m._id);
+      
+      await Member.updateMany(
+        { _id: { $in: objectIds } },
+        { 
+          $pull: { 
+            fines: { 
+              eventId: funeral_id,
+              eventType: "funeral"
+            }
+          }
+        }
+      );
+    }
+
+    // Add fines for newly absent members (excluding those with assignments or removed)
+    if (newlyAbsentEligibleForFines.length > 0) {
+      const memberObjectIds = await Member.find({ member_id: { $in: newlyAbsentEligibleForFines } }).select('_id');
+      
+      for (let memberObjId of memberObjectIds) {
+        await Member.findByIdAndUpdate(
+          memberObjId._id,
+          {
+            $push: {
+              fines: {
+                eventId: funeral_id,
+                eventType: "funeral",
+                amount: funeralAttendanceFine
+              }
+            }
+          }
+        );
+      }
+    }
+
     // Update the funeral document
     const updatedFuneral = await Funeral.findByIdAndUpdate(
       funeral_id,
-      { eventAbsents: absentArray },
-      { new: true } // Return the updated document
+      { eventAbsents: newAbsents },
+      { new: true }
     );
 
-    // Check if the document was found and updated
-    if (!updatedFuneral) {
-      return res.status(404).json({ message: "Funeral not found." });
-    }
-    // Create bulk updates for each absent member
-    const bulkOperations = absentArray.map((memberId) => ({
-      updateOne: {
-        filter: { member_id: memberId },
-        update: {
-          $push: {
-            fines: {
-              eventId: funeral_id,
-              eventType: "funeral",
-              amount: fineAmount,
-            },
-          },
-        },
-      },
-    }));
-    // Execute the bulk write operation
-    const result = await Member.bulkWrite(bulkOperations);
-    console.log("Fines added successfully:", result);
-    // Respond with the updated document
+    // Respond with the updated document and fine information
     res.status(200).json({
-      message: "Funeral absents updated successfully.",
+      message: "Funeral attendance updated successfully.",
       funeral: updatedFuneral,
+      finesAdded: newlyAbsentEligibleForFines.length,
+      finesRemoved: nowPresent.length,
+      excludedFromFines: newlyAbsent.length - newlyAbsentEligibleForFines.length
     });
   } catch (error) {
     console.error("Error updating funeral absents:", error);
@@ -284,6 +355,13 @@ exports.getAvailableFunerals = async (req, res) => {
 exports.getFuneralById = async (req, res) => {
   try {
     const { funeralId } = req.params;
+    
+    // Validate the funeralId parameter
+    if (!funeralId || funeralId === 'undefined' || funeralId === 'null') {
+      return res.status(400).json({ 
+        message: "Invalid funeral ID provided." 
+      });
+    }
     
     const funeral = await Funeral.findById(funeralId)
       .populate({
