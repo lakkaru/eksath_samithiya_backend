@@ -1,10 +1,17 @@
 const mongoose = require('mongoose');
 const { Admin, AdminUser } = require('./models/Admin');
 const Member = require('./models/Member');
+require('dotenv').config(); // Load environment variables
 
 async function checkAdmins() {
   try {
-    await mongoose.connect('mongodb+srv://lakkarudb:3dVyN2cUlWbh16FG@cluster0.idzobxr.mongodb.net/eksath_samithiya?retryWrites=true&w=majority&appName=Cluster0');
+    // Connect to MongoDB using environment variable only
+    if (!process.env.MONGO_URI) {
+      console.error("MONGO_URI environment variable is not set!");
+      process.exit(1);
+    }
+    
+    await mongoose.connect(process.env.MONGO_URI);
     console.log('Connected to MongoDB');
     
     console.log('\n=== AdminUser Collection ===');

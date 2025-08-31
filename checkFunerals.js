@@ -1,9 +1,15 @@
 const mongoose = require("mongoose");
 const Funeral = require("./models/Funeral");
+require('dotenv').config(); // Load environment variables
 
-// Connect to MongoDB using the same connection string as the main server
+// Connect to MongoDB using environment variable only
+if (!process.env.MONGO_URI) {
+  console.error("MONGO_URI environment variable is not set!");
+  process.exit(1);
+}
+
 mongoose
-  .connect("mongodb+srv://eksath:eksath@eksath.idzobxr.mongodb.net/eksath_wilbagedara?retryWrites=true&w=majority")
+  .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
   .catch(err => console.error("MongoDB connection error:", err));
 
