@@ -4,7 +4,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node eksathServer.js",
-    "dev": "nodemon eksathServer.js"
+    "dev": "nodemon eksathServer.js",
+    "setup-admin": "node scripts/setupSuperAdmin.js"
   },
   "keywords": [],
   "author": "",

@@ -467,19 +467,25 @@ async function loggedMemberId(req) {
   try {
     // Step 1: Extract the token from the request headers
     const token = req.headers.authorization?.split(" ")[1]; // Extract "Bearer <token>"
+    
+    if (!token) {
+      return { error: "Authorization token is missing" };
+    }
+
     // Step 2: Verify and decode the token
     let decoded;
-
     try {
       decoded = jwt.verify(token, JWT_SECRET); // Decode the token using the secret
       // console.log('decoded.member_id: ', decoded.member_id)
-      const member = await Member.findOne({ member_id: decoded.member_id });
-      return member;
     } catch (error) {
       return { error: "Invalid or expired token" };
     }
+
     const member = await Member.findOne({ member_id: decoded.member_id });
-    return member;
+    
+    // Return null if member not found (admin users won't be in Member collection)
+    return member; // This can be null for admin users
+    
   } catch (error) {
     return { error: "Authorization token is missing" };
   }
@@ -596,11 +602,19 @@ exports.getMemberHasLoanById = async (req, res) => {
     } catch (error) {
       return res.status(401).json({ error: "Invalid or expired token" });
     }
+
     const member = await Member.findOne({ member_id: decoded.member_id });
+    
+    // Check if member exists (admin users might not be in Member collection)
+    if (!member) {
+      return res.status(200).json({ loan: false }); // Admin users don't have loans
+    }
+
     const loan = await Loan.findOne({
       memberId: member._id,
       loanRemainingAmount: { $gt: 0 },
     });
+    
     if (loan) {
       return res.status(200).json({ loan: true });
     } else {
@@ -628,8 +642,21 @@ exports.getMyLoan = async (req, res) => {
 
   try {
     // Step 1: Extract the token from the request headers
-    //
     const member = await loggedMemberId(req);
+    
+    // Check if there's an error in getting the member or if member doesn't exist
+    if (member && member.error) {
+      return res.status(401).json({ error: member.error });
+    }
+    
+    // If member is null (admin user), return no loan data
+    if (!member) {
+      return res.status(200).json({ 
+        loan: null, 
+        message: "Admin users do not have loan information" 
+      });
+    }
+    
     // console.log('member: ', member)
     const loan = await Loan.findOne({
       memberId: member._id,

@@ -12,10 +12,11 @@ const authMiddleware = (requiredRoles = []) => {
       // Verify the token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Attach member data to the request object
-      req.member = decoded;
+      // Attach user data to the request object (compatible with both admin and member)
+      req.user = decoded;
+      req.member = decoded; // Keep backward compatibility
 
-      // Check if the member has the necessary roles (if provided)
+      // Check if the user has the necessary roles (if provided)
       if (requiredRoles.length && !requiredRoles.some(role => decoded.roles.includes(role))) {
         return res.status(403).json({ message: "Access denied: Insufficient roles" });
       }
