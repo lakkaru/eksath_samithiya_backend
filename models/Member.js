@@ -131,7 +131,7 @@ MemberSchema.pre("save", async function (next) {
   try {
     if (!this.password) {
       // Log the situation if no password is set
-      console.log("No password provided, setting default password");
+      
       this.password = this.member_id.toString();
     }
 

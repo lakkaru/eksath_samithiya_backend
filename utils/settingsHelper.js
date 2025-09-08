@@ -80,18 +80,21 @@ const getFineSettings = async () => {
     const funeralWorkFine = await getSettingValue('FUNERAL_WORK_FINE_VALUE', 'FUNERAL_WORK_FINE_VALUE', 1000);
     const cemeteryWorkFine = await getSettingValue('CEMETERY_WORK_FINE_VALUE', 'CEMETERY_WORK_FINE_VALUE', 1000);
     const funeralAttendanceFine = await getSettingValue('FUNERAL_ATTENDANCE_FINE_VALUE', 'FUNERAL_ATTENDANCE_FINE_VALUE', 100);
+    const commonWorkFine = await getSettingValue('COMMON_WORK_FINE_VALUE', 'COMMON_WORK_FINE_VALUE', 500);
     
     return {
       funeralWorkFine: parseInt(funeralWorkFine) || 1000,
       cemeteryWorkFine: parseInt(cemeteryWorkFine) || 1000,
-      funeralAttendanceFine: parseInt(funeralAttendanceFine) || 100
+      funeralAttendanceFine: parseInt(funeralAttendanceFine) || 100,
+      commonWorkFine: parseInt(commonWorkFine) || 500
     };
   } catch (error) {
     console.error('Error getting fine settings:', error);
     return {
       funeralWorkFine: parseInt(process.env.FUNERAL_WORK_FINE_VALUE) || 1000,
       cemeteryWorkFine: parseInt(process.env.CEMETERY_WORK_FINE_VALUE) || 1000,
-      funeralAttendanceFine: parseInt(process.env.FUNERAL_ATTENDANCE_FINE_VALUE) || 100
+      funeralAttendanceFine: parseInt(process.env.FUNERAL_ATTENDANCE_FINE_VALUE) || 100,
+      commonWorkFine: parseInt(process.env.COMMON_WORK_FINE_VALUE) || 500
     };
   }
 };

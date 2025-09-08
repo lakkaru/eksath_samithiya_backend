@@ -15,6 +15,7 @@ const periodBalanceRoutes = require("./routes/periodBalanceRoutes");
 const officerRoutes = require("./routes/officerRoutes");
 const adminManagementRoutes = require("./routes/adminManagementRoutes");
 const systemSettingsRoutes = require("./routes/systemSettingsRoutes");
+const commonWorkRoutes = require("./routes/commonWorkRoutes");
 
 const PORT = process.env.PORT || 5000;
 
@@ -56,8 +57,9 @@ app.use("/period-balance", periodBalanceRoutes);
 app.use("/officer", officerRoutes);
 app.use("/admin-management", adminManagementRoutes);
 app.use("/system-settings", systemSettingsRoutes);
+app.use("/commonwork", commonWorkRoutes);
 
 //Start the server
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });

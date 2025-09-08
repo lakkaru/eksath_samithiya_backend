@@ -154,6 +154,13 @@ exports.initializeDefaultSettings = async (req, res) => {
         settingType: 'fine',
         description: 'අවමංගල්‍ය උත්සව පැමිණීම් දඩ මුදල',
         updatedBy: userId
+      },
+      {
+        settingName: 'COMMON_WORK_FINE_VALUE',
+        settingValue: 500,
+        settingType: 'fine',
+        description: 'සාමූහික වැඩ පැමිණීම් දඩ මුදල',
+        updatedBy: userId
       }
     ];
     
@@ -219,14 +226,15 @@ exports.getFineSettings = async (req, res) => {
   try {
     const fineSettings = await SystemSettings.find({
       settingName: { 
-        $in: ['FUNERAL_ATTENDANCE_FINE_VALUE', 'FUNERAL_WORK_FINE_VALUE', 'CEMETERY_WORK_FINE_VALUE'] 
+        $in: ['FUNERAL_ATTENDANCE_FINE_VALUE', 'FUNERAL_WORK_FINE_VALUE', 'CEMETERY_WORK_FINE_VALUE', 'COMMON_WORK_FINE_VALUE'] 
       }
     }).select('settingName settingValue');
 
     const fineData = {
       funeralAttendanceFine: 100, // default values
       funeralWorkFine: 1000,
-      cemeteryWorkFine: 1000
+      cemeteryWorkFine: 1000,
+      commonWorkFine: 500
     };
 
     fineSettings.forEach(setting => {
@@ -239,6 +247,9 @@ exports.getFineSettings = async (req, res) => {
           break;
         case 'CEMETERY_WORK_FINE_VALUE':
           fineData.cemeteryWorkFine = parseInt(setting.settingValue) || 1000;
+          break;
+        case 'COMMON_WORK_FINE_VALUE':
+          fineData.commonWorkFine = parseInt(setting.settingValue) || 500;
           break;
       }
     });
