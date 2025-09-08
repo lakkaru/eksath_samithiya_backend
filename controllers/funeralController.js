@@ -2,17 +2,15 @@ const jwt = require("jsonwebtoken"); // For decoding and verifying JWT tokens
 const bcrypt = require("bcrypt");
 const Funeral = require("../models/Funeral");
 const Member = require("../models/Member");
+const { getFineSettings } = require("../utils/settingsHelper");
 
 //getLast cemetery Assignment member and removed members for next duty assignments
 exports.getLastAssignmentInfo = async (req, res) => {
-  // console.log('getLastAssignmentInfo')
   try {
     const lastAssignment = await Funeral.find().sort({ _id: -1 }).limit(1);
-    // console.log(lastAssignment)
     const lastMember_id = lastAssignment[0].cemeteryAssignments[14].member_id;
     const removedMembers = lastAssignment[0].removedMembers;
     const removedMembers_ids = removedMembers.map((member) => member.member_id);
-    // console.log(removedMembers_ids)
     // const lastMember=await Member.findOne({_id:lastMember_id}).select("member_id");
     res.status(200).json({ lastMember_id, removedMembers_ids });
   } catch (error) {
@@ -25,8 +23,6 @@ exports.getLastAssignmentInfo = async (req, res) => {
 //create a funeral event
 exports.createFuneral = async (req, res) => {
   try {
-    console.log("Request body:", req.body);
-
     let {
       date,
       member_id,
@@ -36,7 +32,6 @@ exports.createFuneral = async (req, res) => {
       removedMembers,
     } = req.body;
 
-    //   console.log("Extracted data:", { date, member_id, deceased_id, cemetery, funeral });
     // Assign member_id to deceased_id if deceased_id is "member"
 
     if (deceased_id === "member") {
@@ -52,8 +47,6 @@ exports.createFuneral = async (req, res) => {
       removedMembers,
     });
 
-    console.log("New funeral object:", newFuneral);
-
     const savedFuneral = await newFuneral.save();
 
     res.status(201).json(savedFuneral);
@@ -68,7 +61,6 @@ exports.createFuneral = async (req, res) => {
 //get funeral id by deceased id
 exports.getFuneralByDeceasedId = async (req, res) => {
   try {
-    //   console.log(req.query)
     const { deceased_id } = req.query;
 
     const funeral = await Funeral.findOne({
@@ -81,7 +73,6 @@ exports.getFuneralByDeceasedId = async (req, res) => {
       });
     }
     
-    //   console.log(funeral._id.toString())
     return res.status(200).json(funeral._id.toString());
   } catch (error) {
     console.error("Error getting funeral by deceased_id:", error.message);
@@ -95,7 +86,10 @@ exports.getFuneralByDeceasedId = async (req, res) => {
 // Update event absents with smart fine management
 exports.updateFuneralAbsents = async (req, res) => {
   try {
-    const funeralAttendanceFine = parseInt(process.env.FUNERAL_ATTENDANCE_FINE_VALUE) || 100;
+    // Get fine amounts from database settings
+    const fineSettings = await getFineSettings();
+    const funeralAttendanceFine = fineSettings.funeralAttendanceFine;
+    
     const { funeral_id, absentArray } = req.body.absentData;
     
     // Check if both funeral_id and absentArray are provided
@@ -142,12 +136,6 @@ exports.updateFuneralAbsents = async (req, res) => {
     const newlyAbsentEligibleForFines = newlyAbsent.filter(memberId => 
       !excludedFromFines.includes(memberId)
     );
-
-    console.log(`Members newly absent: ${newlyAbsent.length}`);
-    console.log(`Cemetery assigned: ${cemeteryAssignedIds.length}, Funeral assigned: ${funeralAssignedIds.length}, Removed: ${removedMemberIds.length}`);
-    console.log(`Free/Attendance-Free status: ${freeStatusMemberIds.length}`);
-    console.log(`Total excluded from fines: ${excludedFromFines.length}`);
-    console.log(`Members eligible for fines: ${newlyAbsentEligibleForFines.length}`);
 
     // Remove fines for members who are now present
     if (nowPresent.length > 0) {
@@ -210,10 +198,8 @@ exports.updateFuneralAbsents = async (req, res) => {
 
 //update funeral extraDue fines
 exports.updateMemberExtraDueFines = async (req, res) => {
-  // console.log('first')
   try {
     const dueData = req.body;
-    console.log(dueData);
     if (!dueData) {
       return res.status(400).json({ message: "Invalid request data." });
     }
@@ -221,12 +207,10 @@ exports.updateMemberExtraDueFines = async (req, res) => {
     const member_Id = await Member.findOne({
       member_id: dueData.dueMemberId,
     }).select("_id");
-    // console.log('memberId :', member_id);
     //het funeral object id
     const eventId = await Funeral.findOne({
       deceased_id: dueData.deceased_id,
     }).select("_id");
-    // console.log("eventId :", eventId);
     //update funeral for extraDue members
     const updatedFuneral = await Funeral.findByIdAndUpdate(eventId, {
       $addToSet: { extraDueMembers: dueData.dueMemberId },
@@ -246,7 +230,6 @@ exports.updateMemberExtraDueFines = async (req, res) => {
       },
       { new: false } // Return the updated document
     );
-    // console.log("updatedDue: ", updatedDue);
     const { member_id, name, fines } = updatedDue;
     res.status(200).json({
       message: "Funeral extra due updated successfully.",
@@ -264,8 +247,6 @@ exports.getFuneralExDueMembersByDeceasedId = async (req, res) => {
     const { extraDueMembers, _id: funeralId } = await Funeral.findOne({
       deceased_id,
     }).select("_id extraDueMembers");
-    // console.log("extraDueMembers: ", extraDueMembers);
-    // console.log("funeralId: ", funeralId);
 
     if (!extraDueMembers) {
       return res.status(404).json({ message: "No funeral found." });
@@ -279,12 +260,10 @@ exports.getFuneralExDueMembersByDeceasedId = async (req, res) => {
         }).select("-_id member_id name fines");
 
         if (!extraDueMember) return null; // Handle case where the member is not found
-        // console.log("eventId: ", extraDueMember._id);
         // Filter fines to only include those that match the eventId
         const filteredFines = extraDueMember.fines.filter(
           (fine) => fine.eventId.toString() === funeralId.toString()&& fine.eventType === "extraDue"
         );
-        // console.log("filteredFines: ", filteredFines);
         return {
           member_id: extraDueMember.member_id,
           name: extraDueMember.name,
@@ -292,8 +271,6 @@ exports.getFuneralExDueMembersByDeceasedId = async (req, res) => {
         };
       })
     );
-    // console.log("extraDueMembersInfo: ", extraDueMembersInfo);
-    // console.log("extraDueMembersInfo fines: ", extraDueMembersInfo[0].fines);
     // Remove any null values if some members were not found
     // const filteredExtraDueMembers = extraDueMembers.filter(
     //   (member) => member !== null
@@ -309,10 +286,8 @@ exports.getFuneralExDueMembersByDeceasedId = async (req, res) => {
         };
       });
     });
-    // console.log("mappedExtraDues: ", mappedExtraDues);
     //getting all to an array
     const extraDueMembersPaidInfo = mappedExtraDues.flat();
-    // console.log("extraDueMembersPaidInfo :", extraDueMembersPaidInfo);
     res.status(200).json({
       message: "Funeral extra due fetched successfully.",
       extraDueMembersPaidInfo: extraDueMembersPaidInfo.reverse(),
@@ -393,7 +368,7 @@ exports.getFuneralById = async (req, res) => {
 // Update funeral work attendance
 exports.updateWorkAttendance = async (req, res) => {
   try {
-    const { funeralId, assignmentAbsents } = req.body;
+    const { funeralId, funeralWorkAbsents = [], cemeteryWorkAbsents = [] } = req.body;
     
     if (!funeralId) {
       return res.status(400).json({ message: "Funeral ID is required." });
@@ -405,21 +380,28 @@ exports.updateWorkAttendance = async (req, res) => {
       return res.status(404).json({ message: "Funeral not found." });
     }
     
-    // Get previous absent members to handle fine differences
-    const previousAbsents = funeral.assignmentAbsents || [];
-    const newAbsents = assignmentAbsents || [];
+    // Get previous absent members for both types
+    const previousFuneralAbsents = funeral.funeralWorkAbsents || [];
+    const previousCemeteryAbsents = funeral.cemeteryWorkAbsents || [];
+    const newFuneralAbsents = funeralWorkAbsents || [];
+    const newCemeteryAbsents = cemeteryWorkAbsents || [];
     
     // Find members who were previously absent but now present (remove fines)
-    const nowPresent = previousAbsents.filter(memberId => !newAbsents.includes(memberId));
+    const funeralNowPresent = previousFuneralAbsents.filter(memberId => !newFuneralAbsents.includes(memberId));
+    const cemeteryNowPresent = previousCemeteryAbsents.filter(memberId => !newCemeteryAbsents.includes(memberId));
     
     // Find members who are newly absent (add fines)
-    const newlyAbsent = newAbsents.filter(memberId => !previousAbsents.includes(memberId));
+    const funeralNewlyAbsent = newFuneralAbsents.filter(memberId => !previousFuneralAbsents.includes(memberId));
+    const cemeteryNewlyAbsent = newCemeteryAbsents.filter(memberId => !previousCemeteryAbsents.includes(memberId));
     
-    const funeralWorkFine = parseInt(process.env.FUNERAL_WORK_FINE_VALUE) || 500;
+    // Get fine amounts from database settings
+    const fineSettings = await getFineSettings();
+    const funeralWorkFine = fineSettings.funeralWorkFine;
+    const cemeteryWorkFine = fineSettings.cemeteryWorkFine;
     
-    // Remove fines for members who are now present
-    if (nowPresent.length > 0) {
-      const memberObjectIds = await Member.find({ member_id: { $in: nowPresent } }).select('_id');
+    // Remove funeral work fines for members who are now present
+    if (funeralNowPresent.length > 0) {
+      const memberObjectIds = await Member.find({ member_id: { $in: funeralNowPresent } }).select('_id');
       const objectIds = memberObjectIds.map(m => m._id);
       
       await Member.updateMany(
@@ -435,9 +417,27 @@ exports.updateWorkAttendance = async (req, res) => {
       );
     }
     
-    // Add fines for newly absent members
-    if (newlyAbsent.length > 0) {
-      const memberObjectIds = await Member.find({ member_id: { $in: newlyAbsent } }).select('_id');
+    // Remove cemetery work fines for members who are now present
+    if (cemeteryNowPresent.length > 0) {
+      const memberObjectIds = await Member.find({ member_id: { $in: cemeteryNowPresent } }).select('_id');
+      const objectIds = memberObjectIds.map(m => m._id);
+      
+      await Member.updateMany(
+        { _id: { $in: objectIds } },
+        { 
+          $pull: { 
+            fines: { 
+              eventId: funeralId,
+              eventType: "cemetery-work"
+            }
+          }
+        }
+      );
+    }
+    
+    // Add funeral work fines for newly absent members
+    if (funeralNewlyAbsent.length > 0) {
+      const memberObjectIds = await Member.find({ member_id: { $in: funeralNewlyAbsent } }).select('_id');
       
       for (let memberObjId of memberObjectIds) {
         await Member.findByIdAndUpdate(
@@ -455,16 +455,43 @@ exports.updateWorkAttendance = async (req, res) => {
       }
     }
     
-    // Update assignment absents
-    funeral.assignmentAbsents = newAbsents;
+    // Add cemetery work fines for newly absent members
+    if (cemeteryNewlyAbsent.length > 0) {
+      const memberObjectIds = await Member.find({ member_id: { $in: cemeteryNewlyAbsent } }).select('_id');
+      
+      for (let memberObjId of memberObjectIds) {
+        await Member.findByIdAndUpdate(
+          memberObjId._id,
+          {
+            $push: {
+              fines: {
+                eventId: funeralId,
+                eventType: "cemetery-work",
+                amount: cemeteryWorkFine
+              }
+            }
+          }
+        );
+      }
+    }
+    
+    // Update separate absent arrays
+    funeral.funeralWorkAbsents = newFuneralAbsents;
+    funeral.cemeteryWorkAbsents = newCemeteryAbsents;
+    
+    // Update combined assignmentAbsents for backward compatibility
+    const combinedAbsents = [...new Set([...newFuneralAbsents, ...newCemeteryAbsents])];
+    funeral.assignmentAbsents = combinedAbsents;
     
     await funeral.save();
     
     res.status(200).json({
       message: "Funeral work attendance updated successfully.",
       funeral: funeral,
-      finesAdded: newlyAbsent.length,
-      finesRemoved: nowPresent.length
+      funeralFinesAdded: funeralNewlyAbsent.length,
+      funeralFinesRemoved: funeralNowPresent.length,
+      cemeteryFinesAdded: cemeteryNewlyAbsent.length,
+      cemeteryFinesRemoved: cemeteryNowPresent.length
     });
   } catch (error) {
     console.error("Error updating funeral work attendance:", error);

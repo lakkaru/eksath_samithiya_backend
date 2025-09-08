@@ -14,6 +14,7 @@ const meetingRoutes = require("./routes/meetingRoutes");
 const periodBalanceRoutes = require("./routes/periodBalanceRoutes");
 const officerRoutes = require("./routes/officerRoutes");
 const adminManagementRoutes = require("./routes/adminManagementRoutes");
+const systemSettingsRoutes = require("./routes/systemSettingsRoutes");
 
 const PORT = process.env.PORT || 5000;
 
@@ -54,6 +55,7 @@ app.use("/meeting", meetingRoutes);
 app.use("/period-balance", periodBalanceRoutes);
 app.use("/officer", officerRoutes);
 app.use("/admin-management", adminManagementRoutes);
+app.use("/system-settings", systemSettingsRoutes);
 
 //Start the server
 app.listen(PORT, () => {

@@ -47,7 +47,7 @@ async function updateMemberAbsents(absentArray) {
         );
 
         if (!updatedMember) {
-          console.log(`Member with ID ${member_id} not found.`);
+          return null;
         }
         return updatedMember;
       } catch (updateError) {

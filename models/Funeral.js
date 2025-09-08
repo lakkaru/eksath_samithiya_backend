@@ -33,6 +33,14 @@ const FuneralSchema = new mongoose.Schema(
       type: Array,
       default: []
     },
+    funeralWorkAbsents: {
+      type: Array,
+      default: []
+    },
+    cemeteryWorkAbsents: {
+      type: Array,
+      default: []
+    },
     eventAbsents: {
       type: Array,
       default: []

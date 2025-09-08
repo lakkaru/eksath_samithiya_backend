@@ -5,7 +5,6 @@ const Member = require('../models/Member');
 // Get receipts by date
 exports.getReceiptsByDate = async (req, res) => {
   try {
-    console.log( '=== DATE QUERY DEBUG ===');
     const { date } = req.query;
     const queryDate = new Date(date);
     

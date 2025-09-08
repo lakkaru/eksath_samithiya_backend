@@ -22,7 +22,6 @@ const monthlyMembership2025 = 300;
 
 //getting all info about member and dependents
 async function getMembershipDetails(member_id) {
-  // console.log(member_id)
   const member = await Member.findOne({ member_id: member_id })
     .populate("dependents", "name relationship dateOfDeath") // Populate dependents with necessary fields
     .select(
@@ -49,7 +48,6 @@ async function getTotalMembershipPayment(year, _id) {
   const currentYear = new Date(year).getFullYear();
   const startOfYear = new Date(currentYear, 0, 1);
   const endOfYear = new Date(currentYear + 1, 0, 1);
-  // console.log(currentYear);
   const membershipPayments = await MembershipPayment.find({
     memberId: _id,
     date: {
@@ -65,7 +63,6 @@ async function getTotalMembershipPayment(year, _id) {
   //     $lt: endOfYear,
   //   },
   // }).select("date amount");
-  // console.log('finePayments:', finePayments)
   //getting total membership payments for this year
   const totalMembershipPayments = membershipPayments.reduce(
     (total, payment) => total + payment.amount,
@@ -76,7 +73,6 @@ async function getTotalMembershipPayment(year, _id) {
 
 //getting all payments by a member
 async function getAllPaymentsByMember(member_Id) {
-  // console.log(member_id)
   // const member_Id = await Member.findOne({ member_id: member_id }).select(
   //   "_id"
   // );
@@ -105,8 +101,6 @@ async function getAllPaymentsByMember(member_Id) {
   const finePayments = await FinePayment.find({
     memberId: member_Id, //id object
   }).select("date amount _id");
-  // console.log('member_Id:', member_Id)
-  // console.log('finePayments:', finePayments)
   finePayments.forEach((payment) => {
     const date = new Date(payment.date).toISOString().split("T")[0]; // Normalize date
     if (!paymentMap[date]) {
@@ -270,17 +264,11 @@ async function interestCalculation(
   lastIntPaymentDate,
   paymentDate
 ) {
-  // console.log("Loan Date: :", loanDate);
-  // console.log("remainingAmount: :", remainingAmount);
-  // console.log("lastIntPaymentDate: :", lastIntPaymentDate);
-  // console.log("paymentDate: :", paymentDate);
   if (!loanDate || !remainingAmount || !paymentDate)
     return { int: 0, penInt: 0 };
-  // console.log("paymentDate: ", paymentDate)
   const loanDateObj = new Date(loanDate);
   const lastIntPayDateObj = new Date(lastIntPaymentDate || loanDate);
   const currentDate = new Date(paymentDate);
-  // console.log("currentDate :", currentDate)
   const monthlyInterestRate = 0.03;
   const loanPeriodMonths = 10;
 
@@ -293,27 +281,17 @@ async function interestCalculation(
   }
   //getting installment
   let loanInstallment = 0;
-  // console.log("totalMonths:", totalMonths);
-  // console.log("remainingAmount:", remainingAmount);
   let principleShouldPay=(10000/10)* totalMonths;
   let totalPrinciplePaid=10000-remainingAmount;
-  // console.log("principleShouldPay: ", principleShouldPay);
-  // console.log("totalPrinciplePaid: ", totalPrinciplePaid);
   if(totalPrinciplePaid>= principleShouldPay){
     loanInstallment = 0;
   }
   else if (totalMonths <= 10) {
     loanInstallment = totalMonths * 1000 - (10000 - remainingAmount);
-    // console.log(loanInstallment)
   } else {
     loanInstallment = remainingAmount;
-    // console.log(loanInstallment)
   }
 
-  // console.log("totalMonths :", totalMonths)
-  // console.log('lastIntPayDateObj.getFullYear():',lastIntPayDateObj.getFullYear())
-  // console.log('lastIntPayDateObj.getMonth():',lastIntPayDateObj.getMonth())
-  // console.log('loanDateObj.getMonth():',loanDateObj.getMonth())
   let lastPaymentMonths =
     (lastIntPayDateObj.getFullYear() - loanDateObj.getFullYear()) * 12 +
     (lastIntPayDateObj.getMonth() - loanDateObj.getMonth());
@@ -321,10 +299,8 @@ async function interestCalculation(
   if (lastIntPayDateObj.getDate() - loanDateObj.getDate() > 0) {
     lastPaymentMonths = lastPaymentMonths + 1;
   }
-  // console.log("lastPaymentMonths :", lastPaymentMonths)
 
   const interestUnpaidMonths = Math.max(totalMonths - lastPaymentMonths, 0);
-  // console.log("interestUnpaidMonths: ", interestUnpaidMonths)
   let penaltyMonths = 0;
   //checking loan is over due
   if (totalMonths > 10) {
@@ -337,11 +313,8 @@ async function interestCalculation(
       penaltyMonths = interestUnpaidMonths;
     }
   }
-  // console.log('penaltyMonths: ', penaltyMonths)
   const interest = remainingAmount * interestUnpaidMonths * monthlyInterestRate;
   const penaltyInterest = remainingAmount * penaltyMonths * monthlyInterestRate;
-  // console.log("interest: :", interest);
-  // console.log("penaltyInterest: :", penaltyInterest);
   return {
     int: Math.round(interest),
     penInt: Math.round(penaltyInterest),
@@ -351,7 +324,6 @@ async function interestCalculation(
 
 //getting loan info of the member
 async function memberLoanInfo(member_Id) {
-  // console.log('member_Id:', member_Id)
   const loan = await Loan.findOne({
     memberId: member_Id,
     loanRemainingAmount: { $gt: 0 },
@@ -368,7 +340,6 @@ async function memberLoanInfo(member_Id) {
       path: "guarantor2Id",
       select: "member_id name mobile",
     });
-  // console.log("loan:", loan);
   const asGuarantor = await Loan.find({
     loanRemainingAmount: { $gt: 0 },
     $or: [
@@ -378,7 +349,6 @@ async function memberLoanInfo(member_Id) {
   })
     .select("_id memberId loanNumber")
     .populate({ path: "memberId", select: "name" });
-  // console.log("asGuarantor:", asGuarantor);
 
   let principlePayments = [];
   let interestPayments = [];
@@ -420,7 +390,6 @@ async function memberLoanInfo(member_Id) {
     const groupedPrinciplePayments = groupByDate(principlePayments);
     const groupedInterestPayments = groupByDate(interestPayments);
     const groupedPenaltyIntPayments = groupByDate(penaltyIntPayments);
-    // console.log('groupedPenaltyIntPayments: ', groupedPenaltyIntPayments)
 
     // Combine grouped payments into an array of objects
     const allDates = new Set([
@@ -446,8 +415,6 @@ async function memberLoanInfo(member_Id) {
           0
         ) || 0,
     }));
-    // console.log("groupedPayments: ", groupedPayments);
-    // console.log("loan date for interest: ", loan.loanDate);
     calculatedInterest = await interestCalculation(
       loan?.loanDate,
       loan?.loanRemainingAmount,
@@ -455,9 +422,6 @@ async function memberLoanInfo(member_Id) {
       new Date()
     );
 
-    // console.log("loan: ", loan);
-    // console.log("groupedPayments: ", groupedPayments);
-    // console.log("calculatedInterest: ", calculatedInterest);
   }
   return { loan, groupedPayments, calculatedInterest, asGuarantor };
 }
@@ -476,7 +440,6 @@ async function loggedMemberId(req) {
     let decoded;
     try {
       decoded = jwt.verify(token, JWT_SECRET); // Decode the token using the secret
-      // console.log('decoded.member_id: ', decoded.member_id)
     } catch (error) {
       return { error: "Invalid or expired token" };
     }
@@ -492,7 +455,6 @@ async function loggedMemberId(req) {
 }
 // Get profile information for a member
 exports.getProfileInfo = async (req, res) => {
-  // console.log("edit profile");
   try {
     // Step 1: Extract the token from the request headers
     const token = req.headers.authorization?.split(" ")[1]; // Extract "Bearer <token>"
@@ -505,17 +467,14 @@ exports.getProfileInfo = async (req, res) => {
 
     try {
       decoded = jwt.verify(token, JWT_SECRET); // Decode the token using the secret
-      // console.log('decoded.member_id: ', decoded.member_id)
     } catch (error) {
       return res.status(401).json({ error: "Invalid or expired token" });
     }
-    // console.log("decoded.member_id: ", decoded.member_id);
     // Step 3: Use the decoded token to fetch the member's data
     const member = await Member.findOne(
       { member_id: decoded.member_id }, // Match the member ID from the token
       "mobile whatsApp email address" // Specify only the fields to be retrieved
     );
-    // console.log("member:", member);
     // Step 4: Check if the member exists
     if (!member) {
       return res.status(404).json({ error: "Member not found" });
@@ -585,7 +544,6 @@ exports.updateProfileInfo = async (req, res) => {
 
 //get member has loan
 exports.getMemberHasLoanById = async (req, res) => {
-  // console.log('has Loan')
   try {
     // Step 1: Extract the token from the request headers
     const token = req.headers.authorization?.split(" ")[1]; // Extract "Bearer <token>"
@@ -598,7 +556,6 @@ exports.getMemberHasLoanById = async (req, res) => {
 
     try {
       decoded = jwt.verify(token, JWT_SECRET); // Decode the token using the secret
-      // console.log('decoded.member_id: ', decoded.member_id)
     } catch (error) {
       return res.status(401).json({ error: "Invalid or expired token" });
     }
@@ -630,14 +587,12 @@ exports.getMemberHasLoanById = async (req, res) => {
 
 //get member loan
 // exports.getMemberLoanInfo=async (req, res) => {
-//   console.log(req.query)
 //   const member_Id=req.query.member_id
 
 //   // const loanInfo=await memberLoanInfo(member_Id)
 // }
 //get my loan
 exports.getMyLoan = async (req, res) => {
-  // console.log("my Loan");
   //calculating interest for loan according to payment date
 
   try {
@@ -657,7 +612,6 @@ exports.getMyLoan = async (req, res) => {
       });
     }
     
-    // console.log('member: ', member)
     const loan = await Loan.findOne({
       memberId: member._id,
       loanRemainingAmount: { $gt: 0 },
@@ -674,7 +628,6 @@ exports.getMyLoan = async (req, res) => {
         path: "guarantor2Id",
         select: "member_id name mobile",
       });
-    // console.log('loan: ', loan)
     let principlePayments = [];
     let interestPayments = [];
     let penaltyIntPayments = [];
@@ -721,7 +674,6 @@ exports.getMyLoan = async (req, res) => {
       const groupedPrinciplePayments = groupByDate(principlePayments);
       const groupedInterestPayments = groupByDate(interestPayments);
       const groupedPenaltyIntPayments = groupByDate(penaltyIntPayments);
-      // console.log('groupedPenaltyIntPayments: ', groupedPenaltyIntPayments)
 
       // Combine grouped payments into an array of objects
       const allDates = new Set([
@@ -747,8 +699,6 @@ exports.getMyLoan = async (req, res) => {
             0
           ) || 0,
       }));
-      // console.log("groupedPayments: ", groupedPayments);
-      // console.log("loan: ", loan);
 
       const calculatedInterest = await interestCalculation(
         loan?.loanDate,
@@ -756,7 +706,6 @@ exports.getMyLoan = async (req, res) => {
         lastIntPaymentDate?.date,
         new Date()
       );
-      // console.log("calculatedInterest: ", calculatedInterest);
       // Send the grouped payments in the response
       res.status(200).json({
         success: true,
@@ -777,7 +726,6 @@ exports.getMyLoan = async (req, res) => {
 
 // Get data for member home page
 exports.getMember = async (req, res) => {
-  // console.log('test:', req.member)
   try {
     const token = req.headers.authorization?.split(" ")[1]; // Extract "Bearer <token>"
     if (!token) {
@@ -788,7 +736,6 @@ exports.getMember = async (req, res) => {
     let decoded;
     decoded = jwt.verify(token, JWT_SECRET);
     const memberId = decoded.member_id;
-    // console.log("memberId: ", memberId);
     if (!memberId) {
       return res
         .status(400)
@@ -801,7 +748,6 @@ exports.getMember = async (req, res) => {
       // "name",
       // 'relationship'
     );
-    // console.log('member: ', member)
     if (!member) {
       return res.status(404).json({ error: "Member not found." });
     }
@@ -811,7 +757,6 @@ exports.getMember = async (req, res) => {
       (total, fine) => total + fine.amount,
       0
     );
-    // console.log(member._id);
     //getting all membership payments done by member
     // const allMembershipPayments = await MembershipPayment.find({
     //   memberId: member._id,
@@ -837,7 +782,6 @@ exports.getMember = async (req, res) => {
         $lt: endOfYear,
       },
     }).select("date amount");
-    // console.log('finePayments:', finePayments)
     //getting total membership payments for this year
     const totalMembershipPayments = membershipPayments.reduce(
       (total, payment) => total + payment.amount,
@@ -848,7 +792,6 @@ exports.getMember = async (req, res) => {
       (total, payment) => total + payment.amount,
       0 // Initial value for the total
     );
-    // console.log('totalFinePayments: ', totalFinePayments)
     //calculating membership due for this year
     const currentMonth = new Date().getMonth();
     if (member.siblingsCount > 0) {
@@ -858,9 +801,7 @@ exports.getMember = async (req, res) => {
       membershipCharge = 300 * currentMonth;
     }
     const membershipDue = membershipCharge - totalMembershipPayments;
-    // console.log("membershipPayments:", membershipPayments);
     // Respond with member details
-    // console.log('member:', member)
 
     // Getting guarantor details (guarantor1 or guarantor2) with remaining loan amount
     const asGuarantor = await Loan.find({
@@ -868,7 +809,6 @@ exports.getMember = async (req, res) => {
       loanRemainingAmount: { $ne: 0 },
     }).select("_id");
 
-    // console.log("asGuarantor:", asGuarantor);
 
     const loanDetailsAsGuarantor = await Promise.all(
       asGuarantor.map(async (loan) => {
@@ -899,7 +839,6 @@ exports.getMember = async (req, res) => {
       })
     );
 
-    // console.log("loanDetailsAsGuarantor:", loanDetailsAsGuarantor);
 
     res.status(200).json({
       area: member.area,
@@ -924,11 +863,9 @@ exports.getMember = async (req, res) => {
 //get basic data of the member
 exports.getMemberById = async (req, res) => {
   const { memberId } = req.params;
-  // console.log(memberId)
   try {
     // Extract member_id from headers
     // const memberId = req.member.member_id;
-    // console.log("memberId: ", memberId);
     if (!memberId) {
       return res
         .status(400)
@@ -956,7 +893,6 @@ exports.getMemberById = async (req, res) => {
 
 //get payments data for member payments page
 exports.getPayments = async (req, res) => {
-  // console.log("getPayments");
   try {
     // Getting the authorization token
     const token = req.headers.authorization?.split(" ")[1];
@@ -967,13 +903,11 @@ exports.getPayments = async (req, res) => {
     // Decode the token to extract member information
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const memberId = decoded.member_id;
-    // console.log("Decoded Member ID:", memberId);
     //get member id object
 
     const member_Id = await Member.findOne({ member_id: memberId }).select(
       "_id"
     );
-    // console.log('member_Id:', member_Id)
     // Fetch membership payments
     const membershipPayments = await MembershipPayment.find({
       memberId: member_Id, //id object
@@ -1000,8 +934,6 @@ exports.getPayments = async (req, res) => {
     const finePayments = await FinePayment.find({
       memberId: member_Id, //id object
     }).select("date amount _id");
-    // console.log('member_Id:', member_Id)
-    // console.log('finePayments:', finePayments)
     finePayments.forEach((payment) => {
       const date = new Date(payment.date).toISOString().split("T")[0]; // Normalize date
       if (!paymentMap[date]) {
@@ -1063,7 +995,6 @@ exports.getPayments = async (req, res) => {
     //   (sum, payment) => sum + payment.fineAmount,
     //   0
     // );
-    // console.log("Previous Due:", member.previousDue.totalDue);
 
     // Send the response with the previous due
     res.status(200).json({
@@ -1218,7 +1149,6 @@ exports.getFines = async (req, res) => {
     // ✅ Wait for all fine processing to complete
     const fines = (await Promise.all(finePromises)).filter(Boolean);
 
-    // console.log("Final fines list:", fines);
 
     // ✅ Send the response with the properly populated fines array
     res.status(200).json({
@@ -1237,11 +1167,9 @@ exports.getFines = async (req, res) => {
 //get data of the member for account receipt page
 exports.getMemberDueById = async (req, res) => {
   const { member_id } = req.query;
-  // console.log(member_id)
   try {
     // Extract member_id from headers
     // const memberId = req.member.member_id;
-    // console.log("memberId: ", memberId);
     if (!member_id) {
       return res
         .status(400)
@@ -1252,7 +1180,6 @@ exports.getMemberDueById = async (req, res) => {
     const member = await Member.findOne({ member_id: member_id }).select(
       "_id member_id name previousDue fines siblingsCount"
     );
-    // console.log(member)
     if (!member) {
       return res.status(404).json({ error: "Member not found." });
     }
@@ -1264,18 +1191,15 @@ exports.getMemberDueById = async (req, res) => {
     );
     //getting total of fins and previous dues
     const due = fineTotal + member.previousDue;
-    // console.log('due ', due)
     const finePayments = await FinePayment.find({
       memberId: member._id,
       date: { $gt: new Date("2024-12-31T23:59:59.999Z") },
     });
-    // console.log('finePayments ', finePayments)
     const totalFinePayments = finePayments?.reduce(
       (sum, payment) => sum + payment.amount,
       0
     );
 
-    // console.log("totalFinePayments:", totalFinePayments);
     const totalDue = due - totalFinePayments;
     // //getting all membership payments done by member
     // const allMembershipPayments = await MembershipPayment.find({
@@ -1302,7 +1226,6 @@ exports.getMemberDueById = async (req, res) => {
 
     //calculating membership due for this year
     const currentMonth = new Date().getMonth();
-    // console.log(member.siblingsCount)
     if (member.siblingsCount > 0) {
       membershipCharge =
         (300 * member.siblingsCount * 0.3 + 300) * currentMonth;
@@ -1326,7 +1249,6 @@ exports.getMemberDueById = async (req, res) => {
 //get family
 exports.getFamily = async (req, res) => {
   const { member_id } = req.params;
-  // console.log('member_id: ', member_id)
   try {
     const member = await Member.findOne({ member_id: member_id })
       .select("name _id dateOfDeath")
@@ -1346,7 +1268,6 @@ exports.getFamily = async (req, res) => {
 
     const FamilyRegister = [memberWithRelationship, ...member.dependents];
 
-    // console.log(FamilyRegister);
 
     // Return the response with member and dependents
     res.status(200).json({
@@ -1366,7 +1287,6 @@ exports.getFamily = async (req, res) => {
 //update the member date of death
 exports.updateDiedStatus = async (req, res) => {
   const { _id, dateOfDeath } = req.body;
-  // console.log(req.body)
 
   // Convert dateOfDeath to a Date object
   const parsedDateOfDeath = new Date(dateOfDeath);
@@ -1418,7 +1338,6 @@ exports.updateDiedStatus = async (req, res) => {
 //update the Dependent death
 exports.updateDependentDiedStatus = async (req, res) => {
   const { _id, dateOfDeath } = req.body;
-  // console.log("dateOfDeath: ", dateOfDeath);
   // Input validation
   // if (typeof member_id !== "number") {
   //   return res.status(400).json({
@@ -1499,7 +1418,6 @@ exports.getActiveMembers = async (req, res) => {
 exports.getAdminsForFuneral = async (req, res) => {
   try {
     const { area } = req.query;
-    // console.log("area from create admins: ", area);
     // Generalize the area for matching
     const baseArea = area.replace(/\s*\d+$/, "").trim();
 
@@ -1554,7 +1472,6 @@ exports.getAdminsForFuneral = async (req, res) => {
 exports.getMembershipDeathById = async (req, res) => {
   try {
     const { member_id } = req.query;
-    // console.log(member_id)
     // Find the member by member_id and populate dependents
     const member = await Member.findOne({ member_id })
       .populate("dependents", "name relationship dateOfDeath") // Populate dependents with necessary fields
@@ -1602,16 +1519,12 @@ exports.getMembershipDeathById = async (req, res) => {
 exports.getMemberAllInfoById = async (req, res) => {
   try {
     const { member_id, exclude_loan_installment } = req.query;
-    // console.log(member_id);
     const member = await getMembershipDetails(member_id);
-    //  console.log('member:', member)
     const member_Id = member._id;
-    // console.log('member_Id:', member_Id)
     const membershipRate = await membershipRateForMember(
       member.siblingsCount,
       monthlyMembership2025
     );
-    // console.log('membershipRate:', membershipRate)
 
     const totalMembershipPayment = await getTotalMembershipPayment(
       "2025",
@@ -1619,19 +1532,12 @@ exports.getMemberAllInfoById = async (req, res) => {
     );
     const currentMembershipDue =
       new Date().getMonth() * membershipRate - totalMembershipPayment;
-    // console.log('currentMembershipDue:', currentMembershipDue)
     // const membershipDue=membershipRateForMember
-    // console.log('totalMembershipPayment:', totalMembershipPayment)
     const groupedPayments = await getAllPaymentsByMember(member_Id);
-    // console.log("groupedPayments:", groupedPayments);
     const finesTotalPayments = groupedPayments["2025"]?.totals.fineAmount || 0;
-    // console.log("finesTotalPayments:", finesTotalPayments);
     const fines = await getAllFinesOfMember(member_Id);
-    // console.log("Member fines:", fines);
     const finesTotal = fines["2025"]?.total.fineAmount || 0;
-    // console.log("finesTotal:", finesTotal);
     const loanInfo = await memberLoanInfo(member_Id);
-    // console.log("Loan Info:", loanInfo);
     
     // Calculate totalDue - include loan installment based on unpaid months
     let totalDue;
@@ -1662,7 +1568,6 @@ exports.getMemberAllInfoById = async (req, res) => {
           finesTotalPayments +
           currentMembershipDue;
     }
-    // console.log("totalDue:", totalDue);
 
     return res.status(200).json({
       message: "Member information retrieved successfully",
@@ -1852,7 +1757,6 @@ exports.getDueForMeetingSign = async (req, res) => {
         },
       },
     ]);
-    // console.log("finePayments :", finePayments);
     // Convert payments to a map for quick lookup
     const finePaymentMap = new Map();
     finePayments.forEach((payment) => {
@@ -1893,7 +1797,6 @@ exports.getDueForMeetingSign = async (req, res) => {
 //delete a fine by fine id
 exports.deleteFineById = async (req, res) => {
   try {
-    // console.log(req.body);
     const { member_id, fine_id } = req.body;
 
     // Find and update the member by removing the fine with the given fine_id
@@ -1903,7 +1806,6 @@ exports.deleteFineById = async (req, res) => {
       { new: false }
     ).select("member_id name fines");
 
-    // console.log("Updated Member:", updatedMember);
 
     if (!updatedMember) {
       return res
@@ -1925,7 +1827,6 @@ exports.blacklistDueLoanMembers = async (req, res) => {
   const checkAndBlacklistMembers = async () => {
     const tenMonthsAgo = new Date();
     tenMonthsAgo.setMonth(tenMonthsAgo.getMonth() - 10);
-    // console.log("tenMonthsAgo :", tenMonthsAgo);
 
     // const oneYearAgo = new Date()
     // oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
@@ -1935,7 +1836,6 @@ exports.blacklistDueLoanMembers = async (req, res) => {
       loanDate: { $lte: tenMonthsAgo },
       loanRemainingAmount: { $gt: 0 },
     });
-    // console.log("overdueLoans :", overdueLoans);
 
     for (const loan of overdueLoans) {
       await Member.findByIdAndUpdate(loan.memberId, {
