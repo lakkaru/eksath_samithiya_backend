@@ -22,6 +22,7 @@ const {
   getNextId,
   getMemberIdsForFuneralAttendance,
   getMembersForFuneralDocument,
+  getMembersForCommonWorkDocument,
   getMembersForMeetingAttendance,
   deleteFineById,
   createMember,
@@ -90,6 +91,7 @@ router.get(
 router.get("/getNextId", authMiddleware(["vice-secretary"]), getNextId);
 router.get("/getMemberIdsForFuneralAttendance", authMiddleware(["vice-secretary", "treasurer", "auditor"]), getMemberIdsForFuneralAttendance);
 router.get("/getMembersForFuneralDocument", authMiddleware(["vice-secretary", "treasurer", "auditor"]), getMembersForFuneralDocument);
+router.get("/getMembersForCommonWorkDocument", authMiddleware(["vice-secretary"]), getMembersForCommonWorkDocument);
 router.get("/getMembersForMeetingAttendance", authMiddleware(["vice-secretary"]), getMembersForMeetingAttendance);
 router.post("/deleteFine", authMiddleware(["vice-secretary", "treasurer"]), deleteFineById);
 

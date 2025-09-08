@@ -5,7 +5,7 @@ const jwt = require("jsonwebtoken"); // For decoding and verifying JWT tokens
 const bcrypt = require("bcrypt");
 const Member = require("../models/Member"); // Import the Member model
 const Dependant = require("../models/Dependent"); // Import the Member model
-const Admin = require("../models/Admin");
+const { Admin, AdminUser } = require("../models/Admin");
 const Loan = require("../models/Loan");
 const LoanPrinciplePayment = require("../models/LoanPayment"); // Adjust the path to the Loan model if necessary
 const LoanInterestPayment = require("../models/LoanInterestPayment"); // Adjust the path to the Loan model if necessary
@@ -2617,6 +2617,78 @@ exports.getMembersForCollectionMarking = async (req, res) => {
       success: false,
       error: "An error occurred while fetching members for collection marking",
       details: error.message,
+    });
+  }
+};
+
+// Get member details for common work attendance document printing
+exports.getMembersForCommonWorkDocument = async (req, res) => {
+  try {
+    // Get all members (including deactivated and deceased ones to keep blank rows)
+    const allMembers = await Member.find({})
+      .select("member_id name area status deactivated_at dateOfDeath") 
+      .sort("member_id");
+
+    // Get officers from the main Admin collection
+    const adminDoc = await Admin.findOne({});
+    
+    // Extract officer member IDs from the admin document
+    const officerMemberIds = new Set();
+    if (adminDoc) {
+      // Add all main officers (chairman, secretary, etc.)
+      const officers = [
+        'chairman', 'secretary', 'viceChairman', 'viceSecretary', 
+        'treasurer', 'loanTreasurer'
+      ];
+      
+      officers.forEach(role => {
+        if (adminDoc[role] && adminDoc[role].memberId) {
+          officerMemberIds.add(adminDoc[role].memberId);
+        }
+      });
+    }
+
+    const membersForDocument = allMembers.map((member) => {
+      // Check if member is deactivated or deceased
+      const isDeactivated = member.deactivated_at != null;
+      const isDeceased = member.dateOfDeath != null;
+      
+      // Check if member is an officer
+      const isOfficer = officerMemberIds.has(member.member_id);
+
+      // For deactivated/deceased members, return blank row structure
+      if (isDeactivated || isDeceased) {
+        return {
+          member_id: member.member_id,
+          name: '', // Keep name blank
+          area: '', // Keep area blank
+          status: isDeactivated ? 'deactivated' : 'deceased',
+          isDeactivated: isDeactivated,
+          isDeceased: isDeceased,
+          isOfficer: false
+        };
+      }
+
+      return {
+        member_id: member.member_id,
+        name: member.name,
+        area: member.area,
+        status: member.status || 'active',
+        isDeactivated: false,
+        isDeceased: false,
+        isOfficer: isOfficer
+      };
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      members: membersForDocument
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching member details for common work document.",
+      error: error.message,
     });
   }
 };

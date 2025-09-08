@@ -7,63 +7,89 @@ const Member = require('../models/Member');
 router.get('/admin-structure', async (req, res) => {
   try {
     const adminUsers = await AdminUser.find({});
-    const admins = await Admin.find({});
-    const membersWithRoles = await Member.find({ 
-      roles: { $exists: true, $ne: ["member"] } 
-    }).select('member_id name area roles phone mobile whatsApp');
+    let admin = await Admin.findOne({});
     
-    let areaOfficers = [];
-    if (admins.length > 0) {
-      const admin = admins[0];
-      admin.areaAdmins.forEach(areaAdmin => {
-        if (areaAdmin.memberId) {
-          areaOfficers.push({
-            memberId: areaAdmin.memberId,
-            name: areaAdmin.name,
-            area: areaAdmin.area,
-            role: 'area-admin'
-          });
-        }
-        if (areaAdmin.helper1 && areaAdmin.helper1.memberId) {
-          areaOfficers.push({
-            memberId: areaAdmin.helper1.memberId,
-            name: areaAdmin.helper1.name,
-            area: areaAdmin.area,
-            role: 'area-helper-1'
-          });
-        }
-        if (areaAdmin.helper2 && areaAdmin.helper2.memberId) {
-          areaOfficers.push({
-            memberId: areaAdmin.helper2.memberId,
-            name: areaAdmin.helper2.name,
-            area: areaAdmin.area,
-            role: 'area-helper-2'
-          });
-        }
-      });
-      
-      // Fetch phone numbers for area officers
-      const memberIds = areaOfficers.map(officer => officer.memberId);
-      const membersWithPhone = await Member.find({ 
-        member_id: { $in: memberIds } 
-      }).select('member_id phone mobile whatsApp');
-      
-      // Add phone data to area officers
-      areaOfficers = areaOfficers.map(officer => {
-        const memberData = membersWithPhone.find(m => m.member_id === officer.memberId);
-        return {
-          ...officer,
-          phone: memberData?.phone,
-          mobile: memberData?.mobile,
-          whatsApp: memberData?.whatsApp
-        };
-      });
+    // Initialize admin document if it doesn't exist
+    if (!admin) {
+      admin = new Admin({});
+      await admin.save();
     }
+    
+    // Get main officers from Admin collection
+    const mainOfficers = [];
+    const officerRoles = ['chairman', 'secretary', 'viceChairman', 'viceSecretary', 'treasurer', 'loanTreasurer', 'auditor', 'speakerHandler'];
+    
+    for (const role of officerRoles) {
+      if (admin[role] && admin[role].memberId) {
+        // Get additional member details
+        const memberData = await Member.findOne({ member_id: admin[role].memberId })
+          .select('member_id name area phone mobile whatsApp');
+        
+        if (memberData) {
+          mainOfficers.push({
+            role: role,
+            member_id: admin[role].memberId,
+            name: admin[role].name,
+            area: memberData.area,
+            phone: memberData.phone,
+            mobile: memberData.mobile,
+            whatsApp: memberData.whatsApp,
+            roles: [role] // For compatibility with frontend
+          });
+        }
+      }
+    }
+    
+    // Get area officers
+    let areaOfficers = [];
+    admin.areaAdmins.forEach(areaAdmin => {
+      if (areaAdmin.memberId) {
+        areaOfficers.push({
+          memberId: areaAdmin.memberId,
+          name: areaAdmin.name,
+          area: areaAdmin.area,
+          role: 'area-admin'
+        });
+      }
+      if (areaAdmin.helper1 && areaAdmin.helper1.memberId) {
+        areaOfficers.push({
+          memberId: areaAdmin.helper1.memberId,
+          name: areaAdmin.helper1.name,
+          area: areaAdmin.area,
+          role: 'area-helper-1'
+        });
+      }
+      if (areaAdmin.helper2 && areaAdmin.helper2.memberId) {
+        areaOfficers.push({
+          memberId: areaAdmin.helper2.memberId,
+          name: areaAdmin.helper2.name,
+          area: areaAdmin.area,
+          role: 'area-helper-2'
+        });
+      }
+    });
+    
+    // Fetch phone numbers for area officers
+    const memberIds = areaOfficers.map(officer => officer.memberId);
+    const membersWithPhone = await Member.find({ 
+      member_id: { $in: memberIds } 
+    }).select('member_id phone mobile whatsApp');
+    
+    // Add phone data to area officers
+    areaOfficers = areaOfficers.map(officer => {
+      const memberData = membersWithPhone.find(m => m.member_id === officer.memberId);
+      return {
+        ...officer,
+        phone: memberData?.phone,
+        mobile: memberData?.mobile,
+        whatsApp: memberData?.whatsApp
+      };
+    });
     
     res.json({
       adminUsers,
-      admins,
-      membersWithRoles,
+      admin,
+      mainOfficers, // Send main officers instead of membersWithRoles
       areaOfficers
     });
   } catch (error) {
@@ -71,17 +97,54 @@ router.get('/admin-structure', async (req, res) => {
   }
 });
 
-// Update member roles
+// Update member roles - now updates Admin collection for main officers
 router.put('/assign-role', async (req, res) => {
   try {
     const { member_id, roles, name } = req.body;
+    
+    // Check if member exists
     const member = await Member.findOne({ member_id });
     if (!member) {
       return res.status(404).json({ error: 'Member not found' });
     }
-    member.roles = roles;
-    await member.save();
-    res.json({ success: true, message: 'Roles updated', member });
+
+    // Get or create admin document
+    let admin = await Admin.findOne({});
+    if (!admin) {
+      admin = new Admin({});
+    }
+
+    // Remove member from all current positions first
+    const officerRoles = ['chairman', 'secretary', 'viceChairman', 'viceSecretary', 'treasurer', 'loanTreasurer', 'auditor', 'speakerHandler'];
+    officerRoles.forEach(role => {
+      if (admin[role] && admin[role].memberId === member_id) {
+        admin[role] = { memberId: null, name: "" };
+      }
+    });
+
+    // Assign new roles (excluding 'member' base role)
+    const officerRolesOnly = roles.filter(role => role !== 'member');
+    
+    for (const role of officerRolesOnly) {
+      if (officerRoles.includes(role)) {
+        admin[role] = {
+          memberId: member_id,
+          name: name
+        };
+      }
+    }
+
+    await admin.save();
+    
+    res.json({ 
+      success: true, 
+      message: 'Roles updated in Admin collection', 
+      member: {
+        member_id,
+        name,
+        roles: officerRolesOnly
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
