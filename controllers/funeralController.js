@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const Funeral = require("../models/Funeral");
 const Member = require("../models/Member");
 const { getFineSettings } = require("../utils/settingsHelper");
+const { Admin } = require("../models/Admin");
 
 //getLast cemetery Assignment member and removed members for next duty assignments
 exports.getLastAssignmentInfo = async (req, res) => {
@@ -14,7 +15,6 @@ exports.getLastAssignmentInfo = async (req, res) => {
     // const lastMember=await Member.findOne({_id:lastMember_id}).select("member_id");
     res.status(200).json({ lastMember_id, removedMembers_ids });
   } catch (error) {
-    console.error("Error getting last assignment:", error.message);
     res
       .status(500)
       .json({ message: "Error getting last assignment", error: error.message });
@@ -51,7 +51,6 @@ exports.createFuneral = async (req, res) => {
 
     res.status(201).json(savedFuneral);
   } catch (error) {
-    console.error("Error creating funeral:", error.message);
     res
       .status(500)
       .json({ message: "Error creating funeral", error: error.message });
@@ -97,11 +96,14 @@ exports.updateFuneralAbsents = async (req, res) => {
       return res.status(400).json({ message: "Invalid request data." });
     }
 
-    // Get current funeral to check previous absents
-    const currentFuneral = await Funeral.findById(funeral_id);
+    // Get current funeral to check previous absents and get deceased member's area
+    const currentFuneral = await Funeral.findById(funeral_id).populate('member_id');
     if (!currentFuneral) {
       return res.status(404).json({ message: "Funeral not found." });
     }
+    
+    // Get the deceased member's area for area admin exclusion
+    const deceasedMemberArea = currentFuneral.member_id?.area;
 
     const previousAbsents = currentFuneral.eventAbsents || [];
     const newAbsents = absentArray || [];
@@ -125,11 +127,40 @@ exports.updateFuneralAbsents = async (req, res) => {
     }).select('member_id');
     const freeStatusMemberIds = membersWithFreeStatus.map(member => member.member_id);
     
+    // Get officer member IDs from Admin collection to exclude from fines
+    const adminStructure = await Admin.findOne({});
+    const officerMemberIds = [];
+    
+    if (adminStructure) {
+      // Extract member IDs from main admin roles (excluding auditor - they should be fined)
+      if (adminStructure.chairman?.memberId) officerMemberIds.push(adminStructure.chairman.memberId);
+      if (adminStructure.secretary?.memberId) officerMemberIds.push(adminStructure.secretary.memberId);
+      if (adminStructure.viceChairman?.memberId) officerMemberIds.push(adminStructure.viceChairman.memberId);
+      if (adminStructure.viceSecretary?.memberId) officerMemberIds.push(adminStructure.viceSecretary.memberId);
+      if (adminStructure.treasurer?.memberId) officerMemberIds.push(adminStructure.treasurer.memberId);
+      if (adminStructure.loanTreasurer?.memberId) officerMemberIds.push(adminStructure.loanTreasurer.memberId);
+      // Note: auditor is removed from exclusion - they should be fined for funeral absence
+      if (adminStructure.speakerHandler?.memberId) officerMemberIds.push(adminStructure.speakerHandler.memberId);
+      
+      // Extract member IDs from area admins (including helpers) - only for deceased member's area
+      if (adminStructure.areaAdmins && deceasedMemberArea) {
+        adminStructure.areaAdmins.forEach(areaAdmin => {
+          // Only exclude area admin and helpers if they are from the same area as deceased member
+          if (areaAdmin.area === deceasedMemberArea) {
+            if (areaAdmin.memberId) officerMemberIds.push(areaAdmin.memberId);
+            if (areaAdmin.helper1?.memberId) officerMemberIds.push(areaAdmin.helper1.memberId);
+            if (areaAdmin.helper2?.memberId) officerMemberIds.push(areaAdmin.helper2.memberId);
+          }
+        });
+      }
+    }
+    
     const excludedFromFines = [
       ...cemeteryAssignedIds,
       ...funeralAssignedIds,
       ...removedMemberIds,
-      ...freeStatusMemberIds
+      ...freeStatusMemberIds,
+      ...officerMemberIds
     ];
 
     // Filter newly absent members to exclude those with assignments, who are removed, or have free status
@@ -155,23 +186,38 @@ exports.updateFuneralAbsents = async (req, res) => {
       );
     }
 
-    // Add fines for newly absent members (excluding those with assignments or removed)
+    // Add fines for newly absent members (excluding those with assignments, removed, or already have fines for this funeral)
     if (newlyAbsentEligibleForFines.length > 0) {
-      const memberObjectIds = await Member.find({ member_id: { $in: newlyAbsentEligibleForFines } }).select('_id');
+      // Check which members already have ANY fine for this funeral (any eventType)
+      const membersWithExistingFines = await Member.find({
+        member_id: { $in: newlyAbsentEligibleForFines },
+        'fines.eventId': funeral_id
+      }).select('member_id');
       
-      for (let memberObjId of memberObjectIds) {
-        await Member.findByIdAndUpdate(
-          memberObjId._id,
-          {
-            $push: {
-              fines: {
-                eventId: funeral_id,
-                eventType: "funeral",
-                amount: funeralAttendanceFine
+      const membersWithExistingFineIds = membersWithExistingFines.map(member => member.member_id);
+      
+      // Only add fines to members who don't already have ANY fine for this funeral
+      const membersToFine = newlyAbsentEligibleForFines.filter(memberId => 
+        !membersWithExistingFineIds.includes(memberId)
+      );
+      
+      if (membersToFine.length > 0) {
+        const memberObjectIds = await Member.find({ member_id: { $in: membersToFine } }).select('_id');
+        
+        for (let memberObjId of memberObjectIds) {
+          await Member.findByIdAndUpdate(
+            memberObjId._id,
+            {
+              $push: {
+                fines: {
+                  eventId: funeral_id,
+                  eventType: "funeral",
+                  amount: funeralAttendanceFine
+                }
               }
             }
-          }
-        );
+          );
+        }
       }
     }
 
@@ -182,17 +228,67 @@ exports.updateFuneralAbsents = async (req, res) => {
       { new: true }
     );
 
+    // Calculate final statistics
+    const membersWithExistingFines = await Member.find({
+      member_id: { $in: newlyAbsentEligibleForFines },
+      'fines.eventId': funeral_id
+    }).select('member_id');
+    const existingFinesCount = membersWithExistingFines.length;
+    const actualFinesAdded = Math.max(0, newlyAbsentEligibleForFines.length - existingFinesCount);
+    
     // Respond with the updated document and fine information
     res.status(200).json({
       message: "Funeral attendance updated successfully.",
       funeral: updatedFuneral,
-      finesAdded: newlyAbsentEligibleForFines.length,
+      finesAdded: actualFinesAdded,
       finesRemoved: nowPresent.length,
-      excludedFromFines: newlyAbsent.length - newlyAbsentEligibleForFines.length
+      excludedFromFines: newlyAbsent.length - newlyAbsentEligibleForFines.length,
+      excludedDueToExistingFines: existingFinesCount
     });
   } catch (error) {
-    console.error("Error updating funeral absents:", error);
     res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+// Get members with fines for a specific funeral
+exports.getFuneralFines = async (req, res) => {
+  try {
+    const { funeral_id } = req.params;
+    
+    if (!funeral_id) {
+      return res.status(400).json({ message: "Funeral ID is required" });
+    }
+
+    // Find all members who have funeral attendance fines for this funeral
+    const membersWithFuneralFines = await Member.find({
+      'fines.eventId': funeral_id,
+      'fines.eventType': 'funeral'
+    }).select('member_id name fines');
+
+    // Extract funeral attendance fine details - only include members with non-zero fine amounts
+    const finedMembers = membersWithFuneralFines
+      .map(member => {
+        const funeralFines = member.fines.filter(fine => 
+          fine.eventId.toString() === funeral_id && fine.eventType === 'funeral'
+        );
+        
+        return {
+          member_id: member.member_id,
+          name: member.name,
+          fineAmount: funeralFines[0]?.amount || 0,
+          fineCount: funeralFines.length
+        };
+      })
+      .filter(member => member.fineAmount > 0);
+
+    res.status(200).json({
+      message: "Funeral attendance fines retrieved successfully",
+      finedMembers: finedMembers,
+      totalFinedMembers: finedMembers.length,
+      totalFineAmount: finedMembers.reduce((sum, member) => sum + member.fineAmount, 0)
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error retrieving funeral fines", error: error.message });
   }
 };
 

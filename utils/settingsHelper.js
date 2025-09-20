@@ -36,8 +36,6 @@ const getSettingValue = async (settingName, fallbackEnvVar = null, defaultValue 
     
     return value;
   } catch (error) {
-    console.error(`Error getting setting ${settingName}:`, error);
-    
     // Fallback to environment variable or default
     if (fallbackEnvVar && process.env[fallbackEnvVar]) {
       return parseFloat(process.env[fallbackEnvVar]) || process.env[fallbackEnvVar];
@@ -66,7 +64,6 @@ const getFinancialSettings = async () => {
       initialBankDeposit: parseFloat(initialBank) || 0
     };
   } catch (error) {
-    console.error('Error getting financial settings:', error);
     return {
       initialCashOnHand: parseFloat(process.env.INITIAL_CASH_ON_HAND) || 0,
       initialBankDeposit: parseFloat(process.env.INITIAL_BANK_DEPOSIT) || 0
@@ -89,7 +86,6 @@ const getFineSettings = async () => {
       commonWorkFine: parseInt(commonWorkFine) || 500
     };
   } catch (error) {
-    console.error('Error getting fine settings:', error);
     return {
       funeralWorkFine: parseInt(process.env.FUNERAL_WORK_FINE_VALUE) || 1000,
       cemeteryWorkFine: parseInt(process.env.CEMETERY_WORK_FINE_VALUE) || 1000,
