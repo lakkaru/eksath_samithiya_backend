@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken"); // For decoding and verifying JWT tokens
 const bcrypt = require("bcrypt");
 const Funeral = require("../models/Funeral");
 const Member = require("../models/Member");
-const { getFineSettings } = require("../utils/settingsHelper");
+const { getFineSettings } = require('../utils/settingsHelper');
 const { Admin } = require("../models/Admin");
 
 //getLast cemetery Assignment member and removed members for next duty assignments
@@ -331,7 +331,10 @@ exports.updateMemberExtraDueFines = async (req, res) => {
       message: "Funeral extra due updated successfully.",
       updatedDue: { member_id, name, fines },
     });
-  } catch (error) {}
+  } catch (error) {
+    console.error("Error updating extra due fines:", error);
+  res.status(500).json({ message: "Internal server error." });
+  }
 };
 
 //get Funeral Extra Due Members By DeceasedId

@@ -64,6 +64,16 @@ async function applyFines(updatedMembers, meetingId) {
   for (const member of updatedMembers) {
     if (member && member.meetingAbsents > 0 && member.meetingAbsents % 3 === 0) {
       try {
+        // Ensure fines field is initialized as an array
+        await Member.findOneAndUpdate(
+          { _id: member._id, fines: { $exists: false } },
+          { $set: { fines: [] } }
+        );
+        await Member.findOneAndUpdate(
+          { _id: member._id, fines: null },
+          { $set: { fines: [] } }
+        );
+        
         await Member.findOneAndUpdate(
           { _id: member._id },
           {
@@ -72,6 +82,7 @@ async function applyFines(updatedMembers, meetingId) {
                 eventId: meetingId,
                 eventType: "meeting",
                 amount: FINE_AMOUNT,
+                date: new Date(),
               },
             },
           }
@@ -83,9 +94,168 @@ async function applyFines(updatedMembers, meetingId) {
   }
 }
 
-async function absents() {
-  const absents=Meeting.select('date absents')
+// Efficient function to recalculate attendance and fines for specific members only
+async function recalculateAttendanceForMembers(memberIds, currentMeetingId) {
+  if (!memberIds || memberIds.length === 0) return;
+
+  // Ensure affected members have proper fines arrays
+  await Member.updateMany(
+    { 
+      member_id: { $in: memberIds },
+      $or: [
+        { fines: { $exists: false } },
+        { fines: null },
+        { fines: { $not: { $type: "array" } } }
+      ]
+    },
+    { $set: { fines: [] } }
+  );
+
+  // Remove all meeting-related fines for affected members only
+  await Member.updateMany(
+    { 
+      member_id: { $in: memberIds },
+      fines: { $exists: true, $type: "array" } 
+    },
+    {
+      $pull: {
+        fines: {
+          eventType: "meeting"
+        }
+      }
+    }
+  );
+
+  // Reset meetingAbsents for affected members only
+  await Member.updateMany(
+    { member_id: { $in: memberIds } },
+    { meetingAbsents: 0 }
+  );
+
+  // Get all meetings in chronological order
+  const allMeetings = await Meeting.find().sort({ date: 1 });
+
+  // Recalculate attendance for affected members only
+  for (const meeting of allMeetings) {
+    if (meeting.absents && meeting.absents.length > 0) {
+      // Only process affected members who were absent in this meeting
+      const affectedAbsentMembers = meeting.absents.filter(memberId => 
+        memberIds.includes(memberId)
+      );
+
+      for (const member_id of affectedAbsentMembers) {
+        try {
+          // Increment meetingAbsents
+          const updatedMember = await Member.findOneAndUpdate(
+            { member_id: member_id },
+            { $inc: { meetingAbsents: 1 } },
+            { new: true }
+          );
+
+          // Apply fine if this member hits 3rd, 6th, 9th consecutive absence
+          if (updatedMember && updatedMember.meetingAbsents > 0 && updatedMember.meetingAbsents % 3 === 0) {
+            await Member.findOneAndUpdate(
+              { _id: updatedMember._id },
+              {
+                $push: {
+                  fines: {
+                    eventId: meeting._id,
+                    eventType: "meeting",
+                    amount: FINE_AMOUNT,
+                  },
+                },
+              }
+            );
+          }
+        } catch (error) {
+          console.error(`Error updating member ${member_id}:`, error);
+        }
+      }
+    }
+
+    // Reset meetingAbsents for affected members who were present in this meeting
+    const affectedPresentMembers = memberIds.filter(memberId => 
+      !meeting.absents.includes(memberId)
+    );
+
+    for (const member_id of affectedPresentMembers) {
+      try {
+        await Member.findOneAndUpdate(
+          { member_id: member_id, meetingAbsents: { $gt: 0 } },
+          { meetingAbsents: 0 }
+        );
+      } catch (error) {
+        console.error(`Error resetting member ${member_id}:`, error);
+      }
+    }
+  }
 }
+
+// Get members with fines for a specific meeting
+exports.getMeetingFines = async (req, res) => {
+  console.log('getMeetingFines called:', req.params)
+  try {
+    const { meeting_id } = req.params;
+    
+    if (!meeting_id) {
+      return res.status(400).json({ message: "Meeting ID is required" });
+    }
+
+    // Find all members who have meeting fines for this meeting
+    const membersWithMeetingFines = await Member.find({
+      'fines.eventId': meeting_id,
+      'fines.eventType': 'meeting'
+    }).select('member_id name fines');
+
+    console.log(`Found ${membersWithMeetingFines.length} members with meeting fines for meeting ${meeting_id}`)
+
+    // Extract meeting fine details - show all fines for each member
+    const finedMembers = membersWithMeetingFines
+      .map(member => {
+        const meetingFines = member.fines.filter(fine => 
+          fine.eventId && fine.eventId.toString() === meeting_id && fine.eventType === 'meeting'
+        );
+
+        const processedFines = meetingFines.map((fine, index) => {
+          return {
+            amount: fine.amount || 0,
+            date: fine.date || fine.createdAt || new Date(),
+            _id: fine._id,
+            eventId: fine.eventId,
+            eventType: fine.eventType
+          };
+        });
+
+        const totalFineAmount = meetingFines.reduce((sum, fine) => sum + (fine.amount || 0), 0);
+
+
+        return {
+          member_id: member.member_id,
+          name: member.name,
+          fines: processedFines,
+          totalFineAmount: totalFineAmount,
+          fineCount: meetingFines.length
+        };
+      });
+
+
+
+    const finalFinedMembers = finedMembers.filter(member => member.totalFineAmount > 0);
+    console.log(`After filtering: ${finalFinedMembers.length} members with fines remain`);
+
+
+    
+    res.status(200).json({
+      message: "Meeting attendance fines retrieved successfully",
+      finedMembers: finalFinedMembers,
+      totalFinedMembers: finalFinedMembers.length,
+      totalFineAmount: finalFinedMembers.reduce((sum, member) => sum + member.totalFineAmount, 0)
+    });
+  } catch (error) {
+    console.error('Error in getMeetingFines:', error);
+    res.status(500).json({ message: "Error retrieving meeting fines", error: error.message });
+  }
+};
 
 //getting all meeting attendance 
 exports.getAttendance = async (req, res) => {
@@ -169,6 +339,18 @@ exports.saveAttendance = async (req, res) => {
   try {
     const { date, absentArray } = req.body.absentData;
 
+    // Ensure all members have proper fines array initialized before any operations
+    await Member.updateMany(
+      { 
+        $or: [
+          { fines: { $exists: false } },
+          { fines: null },
+          { fines: { $not: { $type: "array" } } }
+        ]
+      },
+      { $set: { fines: [] } }
+    );
+
     // Parse the date and create date range for the entire day
     const selectedDate = new Date(date);
     const startOfDay = new Date(selectedDate);
@@ -187,80 +369,31 @@ exports.saveAttendance = async (req, res) => {
     let meetingId;
     
     if (existingMeeting) {
+      // Get the old absent array to determine which members' attendance changed
+      const oldAbsentArray = existingMeeting.absents || [];
+      
       // Update existing meeting
       existingMeeting.absents = absentArray;
       await existingMeeting.save();
       meetingId = existingMeeting._id;
       
-      // Remove all previous meeting-related fines for this meeting
-      await Member.updateMany(
-        {},
-        {
-          $pull: {
-            fines: {
-              eventId: meetingId,
-              eventType: "meeting"
-            }
-          }
-        }
-      );
+      // Find members whose attendance status changed
+      const newlyAbsent = absentArray.filter(id => !oldAbsentArray.includes(id));
+      const newlyPresent = oldAbsentArray.filter(id => !absentArray.includes(id));
+      const affectedMembers = [...new Set([...newlyAbsent, ...newlyPresent])];
       
-      // Reset all members' meetingAbsents to recalculate
-      await Member.updateMany(
-        {},
-        { meetingAbsents: 0 }
-      );
+      console.log(`Processing ${affectedMembers.length} affected members instead of all members`);
       
-      // Recalculate all meeting absents from all meetings in chronological order
-      const allMeetings = await Meeting.find().sort({ date: 1 });
-      
-      for (const meeting of allMeetings) {
-        // Update meetingAbsents for absent members in this meeting
-        if (meeting.absents && meeting.absents.length > 0) {
-          await Promise.all(
-            meeting.absents.map(async (member_id) => {
-              try {
-                await Member.findOneAndUpdate(
-                  { member_id: member_id },
-                  { $inc: { meetingAbsents: 1 } }
-                );
-              } catch (updateError) {
-                console.error(`Error updating member ${member_id}:`, updateError);
-              }
-            })
-          );
-        }
+      if (affectedMembers.length === 0) {
+        // No changes in attendance, return early
+        return res.status(200).json({ 
+          message: "No attendance changes detected.",
+          isUpdate: true
+        });
       }
       
-      // Reapply fines for all meetings
-      for (const meeting of allMeetings) {
-        if (meeting.absents && meeting.absents.length > 0) {
-          const membersToCheck = await Member.find({
-            member_id: { $in: meeting.absents }
-          });
-          
-          for (const member of membersToCheck) {
-            if (member.meetingAbsents > 0 && member.meetingAbsents % 3 === 0) {
-              try {
-                await Member.findOneAndUpdate(
-                  { _id: member._id },
-                  {
-                    $push: {
-                      fines: {
-                        eventId: meeting._id,
-                        eventType: "meeting",
-                        amount: FINE_AMOUNT,
-                      },
-                    },
-                  }
-                );
-              } catch (fineError) {
-                console.error(`Error applying fine to member ${member.member_id}:`, fineError);
-              }
-            }
-          }
-        }
-      }
+      // Only process affected members - much more efficient
+      await recalculateAttendanceForMembers(affectedMembers, meetingId);
       
     } else {
       // Create new meeting

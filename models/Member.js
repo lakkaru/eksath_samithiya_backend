@@ -101,6 +101,7 @@ const MemberSchema = new Schema(
         eventId: { type: mongoose.Schema.Types.ObjectId },
         eventType: { type: String },
         amount: { type: Number },
+        date: { type: Date, default: Date.now },
       },
     ],
     roles: {
