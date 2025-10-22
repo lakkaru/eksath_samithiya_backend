@@ -2497,9 +2497,25 @@ exports.getMembersForCollectionMarking = async (req, res) => {
       });
     }
 
+    // Be defensive about the shape of deactivated_at in the DB.
+    // Exclude any member where deactivated_at is set to a non-empty value.
+    // Allow members where deactivated_at is missing, null, or an empty/placeholder string.
+    // Build a query that avoids attempting to cast bad string values to Date.
+    // Some DB rows mistakenly store strings like "null" in the deactivated_at field
+    // which is defined as a Date in the schema. Matching against those raw strings
+    // can cause Mongoose to attempt a Date cast and throw. To be defensive we:
+    //  - include documents where deactivated_at does not exist
+    //  - include documents where deactivated_at is null
+    //  - include documents where deactivated_at is stored as a string (invalid but present)
+    // This ensures members with invalid deactivated values are treated as "active" for marking.
     const members = await Member.find({
       area: area,
-      status: { $ne: "free" } // Exclude only free members
+      status: { $ne: "free" }, // Exclude only free members
+      $or: [
+        { deactivated_at: { $exists: false } },
+        { deactivated_at: null },
+        { deactivated_at: { $type: "string" } }
+      ]
     })
     .select('member_id name area status roles')
     .sort({ member_id: 1 });
