@@ -2551,6 +2551,62 @@ exports.getMembersForCollection = async (req, res) => {
   }
 };
 
+// Public endpoint: get free/attendance-free/funeral-free members for landing page (no auth)
+exports.getMembersStatusPublic = async (req, res) => {
+  try {
+    // Optional limit query param (0 or missing = no limit)
+    const limitRaw = parseInt(req.query.limit, 10)
+    const limit = Number.isInteger(limitRaw) && limitRaw > 0 ? limitRaw : null
+
+    // Defensive conditions: exclude deactivated/deceased
+    const activeDeactivatedCondition = {
+      $or: [
+        { deactivated_at: { $exists: false } },
+        { deactivated_at: null },
+        { deactivated_at: { $type: 'string' } }
+      ]
+    }
+
+    const noDeathCondition = {
+      $or: [
+        { dateOfDeath: { $exists: false } },
+        { dateOfDeath: null }
+      ]
+    }
+
+    const baseAnd = [activeDeactivatedCondition, noDeathCondition]
+
+    const buildQuery = (statusValue) => ({ status: statusValue, $and: baseAnd })
+
+    const qFree = Member.find(buildQuery('free')).select('member_id name area').sort({ member_id: 1 })
+    const qAttendance = Member.find(buildQuery('attendance-free')).select('member_id name area').sort({ member_id: 1 })
+    const qFuneral = Member.find(buildQuery('funeral-free')).select('member_id name area').sort({ member_id: 1 })
+
+    if (limit) {
+      qFree.limit(limit)
+      qAttendance.limit(limit)
+      qFuneral.limit(limit)
+    }
+
+    const [freeMembers, attendanceMembers, funeralMembers] = await Promise.all([qFree.exec(), qAttendance.exec(), qFuneral.exec()])
+
+    res.status(200).json({ 
+      success: true, 
+      counts: {
+        free: freeMembers.length,
+        attendanceFree: attendanceMembers.length,
+        funeralFree: funeralMembers.length
+      },
+      free: freeMembers,
+      attendanceFree: attendanceMembers,
+      funeralFree: funeralMembers
+    })
+  } catch (error) {
+    console.error('Error fetching free members for landing:', error)
+    res.status(500).json({ success: false, error: 'Error fetching free members' })
+  }
+}
+
 // Get members for collection marking - excludes only free members
 exports.getMembersForCollectionMarking = async (req, res) => {
   try {
