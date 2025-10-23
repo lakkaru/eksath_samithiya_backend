@@ -2433,46 +2433,112 @@ exports.getMembersForCollection = async (req, res) => {
       });
     }
 
-    // Excluded roles - members with any of these roles should be excluded
-    const excludedRoles = [
-      "chairman", 
-      "secretary", 
-      "treasurer", 
-      "loan-treasurer", 
-      "vice-secretary", 
+    // Excluded roles - members with any of these roles are considered privileged
+    const privilegedRoles = [
+      "chairman",
+      "secretary",
+      "treasurer",
+      "loan-treasurer",
+      "vice-secretary",
       "vice-chairman"
     ];
 
-    // Get area admin member IDs from Admin collection
+  // Check whether caller wants admins included in the result
+  const includeAdmins = req.query.includeAdmins === 'true' || req.query.includeAdmins === '1'
+  // Check whether caller wants free members included
+  const includeFree = req.query.includeFree === 'true' || req.query.includeFree === '1'
+
+    // Get admin document so we can identify area admins/helpers and main officers
     const adminDoc = await Admin.findOne({});
-    let excludedMemberIds = [];
-    
+    const areaAdminIds = [];
+    const officerIds = new Set();
+
+    if (adminDoc) {
+      if (adminDoc.areaAdmins) {
+        const areaAdmin = adminDoc.areaAdmins.find(a => a.area === area)
+        if (areaAdmin) {
+            // main admin id
+            if (areaAdmin.memberId) areaAdminIds.push(areaAdmin.memberId)
+            // helpers (keep for exclusion logic but mark separately)
+            if (areaAdmin.helper1 && areaAdmin.helper1.memberId) areaAdminIds.push(areaAdmin.helper1.memberId)
+            if (areaAdmin.helper2 && areaAdmin.helper2.memberId) areaAdminIds.push(areaAdmin.helper2.memberId)
+          }
+      }
+
+      // Collect main officer IDs
+      const officers = [
+        'chairman', 'secretary', 'viceChairman', 'viceSecretary', 'treasurer', 'loanTreasurer'
+      ]
+      officers.forEach(r => {
+        if (adminDoc[r] && adminDoc[r].memberId) officerIds.add(adminDoc[r].memberId)
+      })
+    }
+
+    // Build base query
+    const baseQuery = { area: area }
+    // Exclude free members by default, unless includeFree is requested
+    if (!includeFree) baseQuery.status = { $ne: 'free' }
+
+    // If caller did NOT request admins, keep existing exclusions
+    if (!includeAdmins) {
+      baseQuery.roles = { $not: { $elemMatch: { $in: privilegedRoles } } }
+      baseQuery.member_id = { $nin: areaAdminIds }
+    }
+
+    // Exclude deactivated and deceased members from collection lists.
+    // Be defensive: some rows may have malformed values (e.g. string "null") stored in
+    // deactivated_at. We treat members as active only when deactivated_at is missing or null
+    // (or stored as a non-date string), and when dateOfDeath is missing/null.
+    const activeDeactivatedCondition = {
+      $or: [
+        { deactivated_at: { $exists: false } },
+        { deactivated_at: null },
+        { deactivated_at: { $type: 'string' } }
+      ]
+    }
+
+    const noDeathCondition = {
+      $or: [
+        { dateOfDeath: { $exists: false } },
+        { dateOfDeath: null }
+      ]
+    }
+
+    // merge into baseQuery
+    baseQuery.$and = [activeDeactivatedCondition, noDeathCondition]
+
+    const members = await Member.find(baseQuery)
+      .select('member_id name area status roles')
+      .sort({ member_id: 1 })
+
+    // Attach explicit flags so frontend can style area admins and officers differently
+    // Identify main admin id and helper ids for this area (if present in adminDoc)
+    let areaAdminMainId = null
+    const areaHelperIds = []
     if (adminDoc && adminDoc.areaAdmins) {
-      // Find area admin for the selected area
-      const areaAdmin = adminDoc.areaAdmins.find(admin => admin.area === area);
+      const areaAdmin = adminDoc.areaAdmins.find(a => a.area === area)
       if (areaAdmin) {
-        // Add area admin and helpers to excluded list
-        if (areaAdmin.memberId) excludedMemberIds.push(areaAdmin.memberId);
-        if (areaAdmin.helper1 && areaAdmin.helper1.memberId) excludedMemberIds.push(areaAdmin.helper1.memberId);
-        if (areaAdmin.helper2 && areaAdmin.helper2.memberId) excludedMemberIds.push(areaAdmin.helper2.memberId);
+        if (areaAdmin.memberId) areaAdminMainId = areaAdmin.memberId
+        if (areaAdmin.helper1 && areaAdmin.helper1.memberId) areaHelperIds.push(areaAdmin.helper1.memberId)
+        if (areaAdmin.helper2 && areaAdmin.helper2.memberId) areaHelperIds.push(areaAdmin.helper2.memberId)
       }
     }
 
-    const members = await Member.find({
-      area: area,
-      status: { $ne: "free" }, // Exclude free members - get all except free
-      roles: { $not: { $elemMatch: { $in: excludedRoles } } }, // Exclude members who have ANY excluded roles
-      member_id: { $nin: excludedMemberIds } // Exclude area admin and helpers
+    const membersWithFlags = members.map(m => {
+      const obj = m.toObject()
+      const isAreaAdmin = areaAdminMainId && areaAdminMainId === obj.member_id
+      const isAreaHelper = areaHelperIds.includes(obj.member_id)
+      const isOfficer = officerIds.has(obj.member_id)
+      const hasPrivilegedRole = Array.isArray(obj.roles) && obj.roles.some(r => privilegedRoles.includes(r))
+      return { ...obj, isAreaAdmin, isAreaHelper, isOfficer, isPrivileged: isAreaAdmin || isOfficer || hasPrivilegedRole }
     })
-    .select('member_id name area status roles')
-    .sort({ member_id: 1 });
 
     res.status(200).json({
       success: true,
       area: area,
-      count: members.length,
-      members: members,
-      excludedAreaAdmins: excludedMemberIds, // For debugging
+      count: membersWithFlags.length,
+      members: membersWithFlags,
+      includedAdmins: includeAdmins,
     });
 
   } catch (error) {
@@ -2508,14 +2574,26 @@ exports.getMembersForCollectionMarking = async (req, res) => {
     //  - include documents where deactivated_at is null
     //  - include documents where deactivated_at is stored as a string (invalid but present)
     // This ensures members with invalid deactivated values are treated as "active" for marking.
-    const members = await Member.find({
-      area: area,
-      status: { $ne: "free" }, // Exclude only free members
+    // Exclude deactivated or deceased members defensively
+    const activeDeactivatedCondition = {
       $or: [
         { deactivated_at: { $exists: false } },
         { deactivated_at: null },
         { deactivated_at: { $type: "string" } }
       ]
+    }
+
+    const noDeathCondition = {
+      $or: [
+        { dateOfDeath: { $exists: false } },
+        { dateOfDeath: null }
+      ]
+    }
+
+    const members = await Member.find({
+      area: area,
+      status: { $ne: "free" }, // Exclude only free members
+      $and: [activeDeactivatedCondition, noDeathCondition]
     })
     .select('member_id name area status roles')
     .sort({ member_id: 1 });
