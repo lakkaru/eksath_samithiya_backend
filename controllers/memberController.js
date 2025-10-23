@@ -2588,14 +2588,18 @@ exports.getMembersStatusPublic = async (req, res) => {
       qFuneral.limit(limit)
     }
 
-    const [freeMembers, attendanceMembers, funeralMembers] = await Promise.all([qFree.exec(), qAttendance.exec(), qFuneral.exec()])
+    // Get total count of all active members (excluding deactivated/deceased)
+    const totalActiveQuery = Member.countDocuments({ $and: baseAnd })
+
+    const [freeMembers, attendanceMembers, funeralMembers, totalActiveMembers] = await Promise.all([qFree.exec(), qAttendance.exec(), qFuneral.exec(), totalActiveQuery.exec()])
 
     res.status(200).json({ 
       success: true, 
       counts: {
         free: freeMembers.length,
         attendanceFree: attendanceMembers.length,
-        funeralFree: funeralMembers.length
+        funeralFree: funeralMembers.length,
+        totalActive: totalActiveMembers
       },
       free: freeMembers,
       attendanceFree: attendanceMembers,
