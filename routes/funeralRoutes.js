@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const authMiddleware = require("../middleware/authMiddleware");
 
-const {getLastAssignmentInfo, createFuneral, getFuneralByDeceasedId, updateFuneralAbsents, getFuneralFines, updateMemberExtraDueFines, getFuneralExDueMembersByDeceasedId, getAvailableFunerals, getFuneralById, updateWorkAttendance} = require("../controllers/funeralController");
+const {getLastAssignmentInfo, createFuneral, getFuneralByDeceasedId, updateFuneralAbsents, getFuneralFines, updateMemberExtraDueFines, getFuneralExDueMembersByDeceasedId, getAvailableFunerals, getFuneralById, updateWorkAttendance, getFuneralWorkFineAmounts} = require("../controllers/funeralController");
 
 
 router.get("/getLastAssignmentInfo",  authMiddleware(['vice-secretary']), getLastAssignmentInfo);
@@ -15,5 +15,6 @@ router.get("/getFuneralExDueMembersByDeceasedId",  authMiddleware(['vice-secreta
 router.get("/getAvailableFunerals",  authMiddleware(['vice-secretary', 'treasurer', 'auditor']), getAvailableFunerals);
 router.get("/getFuneralById/:funeralId",  authMiddleware(['vice-secretary', 'treasurer', 'auditor']), getFuneralById);
 router.post("/updateWorkAttendance",  authMiddleware(['vice-secretary', 'treasurer', 'auditor']), updateWorkAttendance);
+router.get("/workFineAmounts/:funeralId",  authMiddleware(['vice-secretary', 'treasurer', 'auditor']), getFuneralWorkFineAmounts);
 
 module.exports = router;

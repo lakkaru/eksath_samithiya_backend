@@ -597,3 +597,93 @@ exports.updateWorkAttendance = async (req, res) => {
     res.status(500).json({ message: "Internal server error." });
   }
 };
+
+// Get actual fine amounts for a funeral from member documents
+exports.getFuneralWorkFineAmounts = async (req, res) => {
+  try {
+    const { funeralId } = req.params;
+    
+    if (!funeralId) {
+      return res.status(400).json({ message: "Funeral ID is required." });
+    }
+    
+    console.log(`[getFuneralWorkFineAmounts] Getting fine amounts for funeralId: ${funeralId}`);
+    
+    // First, get the funeral document to find absent members
+    const funeral = await Funeral.findById(funeralId);
+    
+    if (!funeral) {
+      return res.status(404).json({ message: "Funeral not found." });
+    }
+    
+    console.log(`[getFuneralWorkFineAmounts] Funeral found. funeralWorkAbsents: ${funeral.funeralWorkAbsents?.length || 0}, cemeteryWorkAbsents: ${funeral.cemeteryWorkAbsents?.length || 0}`);
+    
+    let funeralWorkFine = null;
+    let cemeteryWorkFine = null;
+    
+    // Get funeral work fine amount from the first absent member
+    if (funeral.funeralWorkAbsents && funeral.funeralWorkAbsents.length > 0) {
+      const firstAbsentMemberId = funeral.funeralWorkAbsents[0];
+      console.log(`[getFuneralWorkFineAmounts] Looking for funeral-work fine in member: ${firstAbsentMemberId}`);
+      
+      const member = await Member.findOne({ member_id: firstAbsentMemberId }).select('fines');
+      
+      if (member && member.fines) {
+        const fine = member.fines.find(f => 
+          f.eventId && f.eventId.toString() === funeralId.toString() && 
+          f.eventType === 'funeral-work'
+        );
+        
+        if (fine) {
+          funeralWorkFine = fine.amount;
+          console.log(`[getFuneralWorkFineAmounts] ✓ Found funeral-work fine: ${funeralWorkFine} for member ${firstAbsentMemberId}`);
+        } else {
+          console.log(`[getFuneralWorkFineAmounts] ✗ No funeral-work fine found for member ${firstAbsentMemberId}`);
+        }
+      }
+    }
+    
+    // Get cemetery work fine amount from the first absent member
+    if (funeral.cemeteryWorkAbsents && funeral.cemeteryWorkAbsents.length > 0) {
+      const firstAbsentMemberId = funeral.cemeteryWorkAbsents[0];
+      console.log(`[getFuneralWorkFineAmounts] Looking for cemetery-work fine in member: ${firstAbsentMemberId}`);
+      
+      const member = await Member.findOne({ member_id: firstAbsentMemberId }).select('fines');
+      
+      if (member && member.fines) {
+        const fine = member.fines.find(f => 
+          f.eventId && f.eventId.toString() === funeralId.toString() && 
+          f.eventType === 'cemetery-work'
+        );
+        
+        if (fine) {
+          cemeteryWorkFine = fine.amount;
+          console.log(`[getFuneralWorkFineAmounts] ✓ Found cemetery-work fine: ${cemeteryWorkFine} for member ${firstAbsentMemberId}`);
+        } else {
+          console.log(`[getFuneralWorkFineAmounts] ✗ No cemetery-work fine found for member ${firstAbsentMemberId}`);
+        }
+      }
+    }
+    
+    // If no fines found (no one was absent), use current settings as default
+    if (funeralWorkFine === null || cemeteryWorkFine === null) {
+      console.log(`[getFuneralWorkFineAmounts] Using current system settings for missing fine amounts.`);
+      const fineSettings = await getFineSettings();
+      funeralWorkFine = funeralWorkFine || fineSettings.funeralWorkFine;
+      cemeteryWorkFine = cemeteryWorkFine || fineSettings.cemeteryWorkFine;
+    }
+    
+    console.log(`[getFuneralWorkFineAmounts] Final amounts - funeralWorkFine: ${funeralWorkFine}, cemeteryWorkFine: ${cemeteryWorkFine}`);
+    
+    res.status(200).json({
+      success: true,
+      fineAmounts: {
+        funeralWorkFine,
+        cemeteryWorkFine
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching funeral work fine amounts:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};

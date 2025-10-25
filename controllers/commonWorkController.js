@@ -374,3 +374,66 @@ exports.getCommonWorkStats = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// Get actual fine amount for a common work from member documents
+exports.getCommonWorkFineAmount = async (req, res) => {
+  try {
+    const { workId } = req.params;
+    
+    if (!workId) {
+      return res.status(400).json({ message: "Common work ID is required." });
+    }
+    
+    console.log(`[getCommonWorkFineAmount] Getting fine amount for workId: ${workId}`);
+    
+    // First, get the common work document to find absent members
+    const commonWork = await CommonWork.findById(workId);
+    
+    if (!commonWork) {
+      return res.status(404).json({ message: "Common work not found." });
+    }
+    
+    console.log(`[getCommonWorkFineAmount] Common work found. Absents: ${commonWork.absents?.length || 0}`);
+    
+    let commonWorkFine = null;
+    
+    // Get fine amount from the first absent member
+    if (commonWork.absents && commonWork.absents.length > 0) {
+      const firstAbsentMemberId = commonWork.absents[0];
+      console.log(`[getCommonWorkFineAmount] Looking for common-work fine in member: ${firstAbsentMemberId}`);
+      
+      const member = await Member.findOne({ member_id: firstAbsentMemberId }).select('fines');
+      
+      if (member && member.fines) {
+        const fine = member.fines.find(f => 
+          f.eventId && f.eventId.toString() === workId.toString() && 
+          f.eventType === 'common-work'
+        );
+        
+        if (fine) {
+          commonWorkFine = fine.amount;
+          console.log(`[getCommonWorkFineAmount] ✓ Found common-work fine: ${commonWorkFine} for member ${firstAbsentMemberId}`);
+        } else {
+          console.log(`[getCommonWorkFineAmount] ✗ No common-work fine found for member ${firstAbsentMemberId}`);
+        }
+      }
+    }
+    
+    // If no fine found (no one was absent), use current settings as default
+    if (commonWorkFine === null) {
+      console.log(`[getCommonWorkFineAmount] Using current system settings for fine amount.`);
+      const fineSettings = await getFineSettings();
+      commonWorkFine = fineSettings.commonWorkFine;
+    }
+    
+    console.log(`[getCommonWorkFineAmount] Final amount - commonWorkFine: ${commonWorkFine}`);
+    
+    res.status(200).json({
+      success: true,
+      fineAmount: commonWorkFine
+    });
+  } catch (error) {
+    console.error("Error fetching common work fine amount:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};

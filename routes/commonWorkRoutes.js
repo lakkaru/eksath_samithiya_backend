@@ -8,7 +8,8 @@ const {
   getAllCommonWorks,
   saveCommonWorkAttendance,
   deleteCommonWork,
-  getCommonWorkStats
+  getCommonWorkStats,
+  getCommonWorkFineAmount
 } = require("../controllers/commonWorkController");
 
 // Get all common works with filtering and pagination
@@ -22,6 +23,9 @@ router.get("/date", authMiddleware(['vice-secretary']), getCommonWorkByDate);
 
 // Get common work by ID
 router.get("/:workId", authMiddleware(['vice-secretary']), getCommonWorkById);
+
+// Get fine amount for a common work from member documents
+router.get("/fineAmount/:workId", authMiddleware(['vice-secretary', 'treasurer', 'auditor']), getCommonWorkFineAmount);
 
 // Save/update common work attendance
 router.post("/attendance", authMiddleware(['vice-secretary']), saveCommonWorkAttendance);
