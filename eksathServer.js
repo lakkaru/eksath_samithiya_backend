@@ -16,6 +16,7 @@ const officerRoutes = require("./routes/officerRoutes");
 const adminManagementRoutes = require("./routes/adminManagementRoutes");
 const systemSettingsRoutes = require("./routes/systemSettingsRoutes");
 const commonWorkRoutes = require("./routes/commonWorkRoutes");
+const whatsappRoutes = require("./routes/whatsappRoutes");
 
 const PORT = process.env.PORT || 5000;
 
@@ -58,6 +59,7 @@ app.use("/officer", officerRoutes);
 app.use("/admin-management", adminManagementRoutes);
 app.use("/system-settings", systemSettingsRoutes);
 app.use("/commonwork", commonWorkRoutes);
+app.use("/whatsapp", whatsappRoutes);
 
 //Start the server
 app.listen(PORT, () => {

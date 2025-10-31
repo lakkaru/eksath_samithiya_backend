@@ -8,3 +8,6 @@ node_modules/
 
 # But allow .env.example
 !.env.example
+
+# WhatsApp Web session storage
+.wwebjs_auth/
