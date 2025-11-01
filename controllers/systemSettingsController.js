@@ -266,3 +266,38 @@ exports.getFineSettings = async (req, res) => {
     });
   }
 };
+
+// Upsert a setting (create if not exists or update existing) - super-admin only
+exports.upsertSetting = async (req, res) => {
+  try {
+    const { settingName, settingValue, settingType = 'general', description = '' } = req.body;
+    const userMemberId = req.user.member_id; // Use member_id from JWT payload
+
+    if (!settingName) {
+      return res.status(400).json({ success: false, message: 'settingName is required' });
+    }
+
+    // Get AdminUser ObjectId
+    const userId = await getAdminUserObjectId(userMemberId);
+
+    const existing = await SystemSettings.findOne({ settingName });
+    if (existing) {
+      const updated = await SystemSettings.updateSetting(settingName, settingValue, userId, 'Upsert from admin UI');
+      return res.status(200).json({ success: true, message: 'Setting updated', setting: updated });
+    }
+
+    // Create new setting
+    const newSetting = new SystemSettings({
+      settingName,
+      settingValue,
+      settingType,
+      description,
+      updatedBy: userId
+    });
+    await newSetting.save();
+    return res.status(201).json({ success: true, message: 'Setting created', setting: newSetting });
+  } catch (error) {
+    console.error('Error upserting setting:', error);
+    res.status(500).json({ success: false, message: 'සැකසුම upsert කිරීමේදී දෝෂයක් ඇති විය' });
+  }
+};

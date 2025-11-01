@@ -9,6 +9,7 @@ const {
   getSettingsByType,
   getFineSettings
 } = require("../controllers/systemSettingsController");
+const { upsertSetting } = require("../controllers/systemSettingsController");
 
 // Get all system settings (super-admin only)
 router.get("/", authMiddleware(['super-admin']), getAllSettings);
@@ -27,5 +28,8 @@ router.get("/:settingName", authMiddleware(['super-admin']), getSettingByName);
 
 // Update specific setting (super-admin only)
 router.put("/:settingName", authMiddleware(['super-admin']), updateSetting);
+
+// Upsert a setting (create or update) - super-admin only
+router.post("/upsert", authMiddleware(['super-admin']), upsertSetting);
 
 module.exports = router;
