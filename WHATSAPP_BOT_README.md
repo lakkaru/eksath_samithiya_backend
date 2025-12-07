@@ -97,3 +97,39 @@ The bot uses `LocalAuth` strategy which saves the session in `.wwebjs_auth/` dir
 - If QR doesn't appear, check terminal output for errors
 - If bot doesn't respond, verify member's WhatsApp number is registered
 - To reset: stop server, delete `.wwebjs_auth/` folder, restart and scan QR again
+
+## Organization Account (Cloud API) Setup
+
+Alternatively, you can use the official WhatsApp Business Cloud API (Organization Account) instead of the QR-based solution.
+
+### 1. Prerequisites
+- A Meta Developer Account
+- A WhatsApp Business App created in the Meta Developer Portal
+- A verified Phone Number added to the App
+
+### 2. Configuration
+Add the following to your `.env` file in the root directory:
+
+```env
+# Meta WhatsApp Cloud API credentials
+WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
+WHATSAPP_ACCESS_TOKEN=your_permanent_or_system_user_token
+WHATSAPP_APP_SECRET=your_app_secret
+WHATSAPP_VERIFY_TOKEN=my_secure_random_token_123
+```
+
+### 3. Webhook Setup
+1. Expose your local server using ngrok:
+   ```bash
+   ngrok http 5000
+   ```
+2. Go to your Meta App Dashboard > WhatsApp > Configuration.
+3. Edit the Webhook Callback URL:
+   - URL: `https://<your-ngrok-url>/whatsapp-cloud/webhook`
+   - Verify Token: The value you set for `WHATSAPP_VERIFY_TOKEN` (e.g., `my_secure_random_token_123`)
+4. Verify and Save.
+5. Subscribe to `messages` webhook field.
+
+### 4. Usage
+The Cloud API bot responds to the same commands (`BALANCE`, `ABSENT`, `FAMILY`) as the QR bot.
+

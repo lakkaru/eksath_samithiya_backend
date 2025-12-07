@@ -17,6 +17,7 @@ const adminManagementRoutes = require("./routes/adminManagementRoutes");
 const systemSettingsRoutes = require("./routes/systemSettingsRoutes");
 const commonWorkRoutes = require("./routes/commonWorkRoutes");
 const whatsappRoutes = require("./routes/whatsappRoutes");
+const whatsappCloudRoutes = require("./routes/whatsappCloudRoutes");
 
 const PORT = process.env.PORT || 5000;
 
@@ -44,6 +45,14 @@ app.use(cors());
 // app.options("*", (req, res) => {
 //   res.sendStatus(204); // No Content
 // });
+// Explicitly handle OPTIONS requests
+// app.options("*", (req, res) => {
+//   res.sendStatus(204); // No Content
+// });
+
+// Mount WhatsApp Cloud Webhook BEFORE express.json() to allow raw body capture
+app.use("/whatsapp-cloud", whatsappCloudRoutes);
+
 app.use(express.json());
 
 //routes
@@ -60,6 +69,8 @@ app.use("/admin-management", adminManagementRoutes);
 app.use("/system-settings", systemSettingsRoutes);
 app.use("/commonwork", commonWorkRoutes);
 app.use("/whatsapp", whatsappRoutes);
+app.use("/whatsapp", whatsappRoutes);
+// app.use("/whatsapp-cloud", whatsappCloudRoutes); // Moved up
 
 //Start the server
 app.listen(PORT, () => {
