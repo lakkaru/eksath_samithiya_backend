@@ -39,12 +39,15 @@ function formatCurrency(amount) {
 
 async function buildBalanceText(member) {
   const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth() + 1;
+  const prevYear = currentYear - 1;
+  // Calculate up to LAST month (e.g. if Feb, charge for 1 month: Jan)
+  // getMonth() is 0-indexed (Jan=0, Feb=1), so it effectively gives the count of full past months
+  const monthsToCharge = new Date().getMonth();
   const startOfYear = new Date(currentYear, 0, 1);
 
-  let membershipCharge = 300 * currentMonth;
+  let membershipCharge = 300 * monthsToCharge;
   if (member.siblingsCount > 0) {
-    membershipCharge = (300 * member.siblingsCount * 0.3 + 300) * currentMonth;
+    membershipCharge = (300 * member.siblingsCount * 0.3 + 300) * monthsToCharge;
   }
 
   const membershipPayments = await MembershipPayment.find({ memberId: member._id, date: { $gte: startOfYear } });
@@ -56,9 +59,16 @@ async function buildBalanceText(member) {
   const totalFinePaid = finePayments.reduce((s, p) => s + (p.amount || 0), 0);
   const fineDue = fineTotal - totalFinePaid;
 
-  const totalOutstanding = membershipDue + fineDue + (member.previousDue || 0);
+  const previousDueVal = member.previousDue || 0;
+  const totalOutstanding = membershipDue + fineDue + previousDueVal;
 
-  return `${member.name}\nසා.අංකය: ${member.member_id}\n\nසාමාජිකත්ව හිඟ: ${formatCurrency(membershipDue)}\nදඩ හිඟ: ${formatCurrency(fineDue)}\nපෙර හිඟ: ${formatCurrency(member.previousDue || 0)}\n\nමුළු හිඟ: ${formatCurrency(totalOutstanding)}`;
+  // Dynamic label for previous due
+  const prevDueLabel = previousDueVal < 0 ? `${prevYear} ඉතිරිය` : `${prevYear} හිඟ`;
+
+  // Dynamic label for Total Outstanding
+  const totalLabel = totalOutstanding < 0 ? 'මුළු ඉතිරිය' : 'මුළු හිඟ';
+
+  return `${member.name}\nසා.අංකය: ${member.member_id}\n\nසාමාජිකත්ව හිඟ: ${formatCurrency(membershipDue)}\nදඩ හිඟ: ${formatCurrency(fineDue)}\n${prevDueLabel}: ${formatCurrency(previousDueVal)}\n\n${totalLabel}: ${formatCurrency(totalOutstanding)}`;
 }
 
 async function buildAbsencesText(member) {
